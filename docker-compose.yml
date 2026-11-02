@@ -1,0 +1,32 @@
+x-mysql-healthcheck: &mysql-healthcheck
+  test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '--silent']
+  interval: 5s
+  timeout: 5s
+  retries: 30
+  start_period: 30s
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-eyework}
+    ports:
+      - '127.0.0.1:${DB_PORT:-3306}:3306'
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck: *mysql-healthcheck
+
+  db-test:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: eyework_test
+    ports:
+      - '127.0.0.1:${DB_TEST_PORT:-3307}:3306'
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck: *mysql-healthcheck
+
+volumes:
+  db-data:

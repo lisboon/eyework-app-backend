@@ -2,6 +2,24 @@ import globals from 'globals';
 import pluginJs from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
+const restrictNest = {
+  regex: '^@nestjs/',
+  message: 'The domain must not depend on NestJS. Keep it in src/infra.',
+};
+const restrictInfra = {
+  regex: '(^@/|/)infra(/|$)',
+  message:
+    'The domain must not import infra. Define an interface (gateway) in the domain.',
+};
+const restrictPrisma = {
+  regex: '(^@prisma/|/generated/prisma(/|$))',
+  message: 'Prisma is only allowed in repository/ and factory/.',
+};
+const restrictInfraExceptDatabase = {
+  regex: '(^@/|/)infra/(?!database(/|$))',
+  message: 'repository/ and factory/ may only import the database infra.',
+};
+
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   { files: ['**/*.{js,mjs,cjs,ts}'] },
@@ -30,6 +48,28 @@ export default [
     },
   },
   {
+    files: ['src/domain/**/*.ts'],
+    ignores: ['src/domain/**/repository/**', 'src/domain/**/factory/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [restrictNest, restrictInfra, restrictPrisma] },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/domain/**/repository/**/*.ts',
+      'src/domain/**/factory/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [restrictNest, restrictInfraExceptDatabase] },
+      ],
+    },
+  },
+  {
     ignores: [
       'eslint.config.mjs',
       'dist/',
@@ -38,6 +78,7 @@ export default [
       'prisma/',
       '.github/',
       '.husky/',
+      'src/infra/database/generated/',
     ],
   },
 ];

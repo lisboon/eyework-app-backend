@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# ai
+.kiro
+.claude
+
 # Prisma generated client
 /src/infra/database/generated/
 
