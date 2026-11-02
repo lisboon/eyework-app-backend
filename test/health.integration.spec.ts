@@ -27,6 +27,13 @@ describe('Health (integration)', () => {
     expect(response.body).toEqual({ status: 'ok' });
   });
 
+  it('GET /health/ready should return 200 when the test database answers', async () => {
+    const response = await request(app.getHttpServer()).get('/health/ready');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
+  });
+
   it('should send the security headers set by configureApp', async () => {
     const response = await request(app.getHttpServer()).get('/health/live');
 
