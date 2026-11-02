@@ -9,6 +9,11 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependabot
+    ignore:
+      - dependency-name: 'prisma'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
