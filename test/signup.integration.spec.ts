@@ -101,6 +101,22 @@ describe('POST /auth/signup (integration)', () => {
     },
   );
 
+  it('should answer 400 when the body is nested deeper than 32 levels', async () => {
+    const note = `${'['.repeat(5000)}${']'.repeat(5000)}`;
+    const response = await request(app.getHttpServer())
+      .post('/auth/signup')
+      .set('Content-Type', 'application/json')
+      .send(`${JSON.stringify(validBody).slice(0, -1)},"note":${note}}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Request body is nested deeper than 32 levels',
+    });
+    await expect(prisma.user.count()).resolves.toBe(0);
+  });
+
   it('should return 422 when the email is already registered with another case', async () => {
     await signUp(validBody).expect(201);
 
