@@ -1,0 +1,1 @@
+ALTER TABLE `User` MODIFY `email` VARCHAR(254) NOT NULL COLLATE utf8mb4_bin;
