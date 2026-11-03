@@ -61,4 +61,14 @@ describe('ClassValidatorFields', () => {
     expect(valid).toBe(true);
     expect(notification.hasErrors()).toBe(false);
   });
+
+  it('should fail loudly when no rule belongs to the requested groups', () => {
+    const { validator, notification } = makeSut();
+
+    expect(() =>
+      validator.validate(notification, new SampleRules('Ana', 'ana'), [
+        'delete',
+      ]),
+    ).toThrow('SampleRules has no validation rules for the groups: delete');
+  });
 });

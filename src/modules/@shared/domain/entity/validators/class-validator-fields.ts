@@ -1,4 +1,5 @@
-import { validateSync, type ValidationError } from 'class-validator';
+import { validateSync } from 'class-validator';
+import { constraintMessages } from './constraint-messages';
 import type { Notification } from './notification';
 import type { IValidatorFields } from './validator-fields-interface';
 
@@ -9,18 +10,18 @@ export abstract class ClassValidatorFields implements IValidatorFields {
     fields: string[],
   ): boolean {
     const errors = validateSync(data, { groups: fields });
-    errors.forEach((error) => addErrors(notification, error, error.property));
+
+    if (errors.some((error) => error.constraints?.unknownValue)) {
+      throw new Error(
+        `${data.constructor.name} has no validation rules for the groups: ${fields.join(', ')}`,
+      );
+    }
+
+    errors.forEach((error) =>
+      constraintMessages(error).forEach((message) =>
+        notification.addError(message, error.property),
+      ),
+    );
     return errors.length === 0;
   }
-}
-
-function addErrors(
-  notification: Notification,
-  error: ValidationError,
-  field: string,
-): void {
-  Object.values(error.constraints ?? {}).forEach((message) =>
-    notification.addError(message, field),
-  );
-  error.children?.forEach((child) => addErrors(notification, child, field));
 }
