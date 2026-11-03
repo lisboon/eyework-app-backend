@@ -26,8 +26,12 @@ export class User extends BaseEntity {
       props.deletedAt,
     );
     this._name = props.name.trim();
-    this._email = props.email.trim().toLowerCase();
+    this._email = User.normalizeEmail(props.email);
     this._password = props.password;
+  }
+
+  static normalizeEmail(email: string): string {
+    return email.trim().toLowerCase().normalize('NFC');
   }
 
   static create(props: UserProps): User {
@@ -38,6 +42,10 @@ export class User extends BaseEntity {
 
   validate(fields: string[]): boolean {
     return new UserValidator().validate(this._notification, this, fields);
+  }
+
+  canAuthenticate(): boolean {
+    return this.active && this.deletedAt === undefined;
   }
 
   get name(): string {

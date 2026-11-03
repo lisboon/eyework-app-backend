@@ -11,11 +11,18 @@ import type {
 
 export class SignUpUseCase implements SignUpUseCaseInterface {
   constructor(
-    private readonly userGateway: UserGateway,
-    private readonly authService: AuthUserServiceInterface,
+    private readonly userGateway: Pick<UserGateway, 'findByEmail' | 'create'>,
+    private readonly authService: Pick<
+      AuthUserServiceInterface,
+      'hashPassword' | 'generateToken'
+    >,
   ) {}
 
   async execute(input: SignUpInputDto): Promise<SignUpOutputDto> {
+    if (await this.userGateway.findByEmail(User.normalizeEmail(input.email))) {
+      throw emailAlreadyRegisteredError();
+    }
+
     const user = User.create({
       name: input.name,
       email: input.email,
@@ -26,12 +33,13 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
       throw new EntityValidationError(user.notification.toJSON());
     }
 
-    if (await this.userGateway.findByEmail(user.email)) {
-      throw emailAlreadyRegisteredError();
-    }
-
     await this.userGateway.create(user);
 
-    return { id: user.id, name: user.name, email: user.email };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      accessToken: this.authService.generateToken({ sub: user.id }),
+    };
   }
 }

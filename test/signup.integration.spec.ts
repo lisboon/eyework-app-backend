@@ -1,11 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { version } from 'uuid';
 import { PrismaService } from '@/infra/database/prisma.service';
-import { AppModule } from '@/infra/http/app.module';
-import { configureApp } from '@/infra/http/app.setup';
+import { createTestApp } from './setup/app';
 import { resetDatabase } from './setup/database';
 
 describe('POST /auth/signup (integration)', () => {
@@ -22,12 +20,7 @@ describe('POST /auth/signup (integration)', () => {
     request(app.getHttpServer()).post('/auth/signup').send(body);
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = configureApp(moduleRef.createNestApplication());
-    await app.init();
+    app = await createTestApp();
     prisma = app.get(PrismaService);
   });
 
@@ -47,6 +40,7 @@ describe('POST /auth/signup (integration)', () => {
       id: expect.any(String),
       name: 'Ana Souza',
       email: 'ana@example.com',
+      accessToken: expect.any(String),
     });
     expect(version(response.body.id)).toBe(7);
 
@@ -87,6 +81,25 @@ describe('POST /auth/signup (integration)', () => {
       { password: ['password must be at most 72 bytes'] },
     ]);
   });
+
+  it.each([
+    ['a value', { ...validBody, email: 'ana\ud800@example.com' }],
+    ['a key', { ...validBody, 'note\udc00': 'ignored' }],
+  ])(
+    'should answer 400 with the security headers when %s is not valid Unicode',
+    async (_, body) => {
+      const response = await signUp(body);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Request body contains invalid Unicode',
+      });
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      await expect(prisma.user.count()).resolves.toBe(0);
+    },
+  );
 
   it('should return 422 when the email is already registered with another case', async () => {
     await signUp(validBody).expect(201);

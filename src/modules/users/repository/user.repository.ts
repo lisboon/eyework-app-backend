@@ -10,6 +10,11 @@ import type { UserGateway } from '../gateway/user.gateway';
 export class UserRepository implements UserGateway {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async findById(id: string): Promise<User | null> {
+    const row = await this.prisma.user.findUnique({ where: { id } });
+    return row ? this.toEntity(row) : null;
+  }
+
   async findByEmail(email: string): Promise<User | null> {
     const row = await this.prisma.user.findUnique({ where: { email } });
     return row ? this.toEntity(row) : null;
