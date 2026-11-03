@@ -74,3 +74,37 @@ describe('User', () => {
     expect(user.password).toBe(makeProps().password);
   });
 });
+
+describe('User authentication rules', () => {
+  const makeUser = (overrides: Partial<UserProps> = {}) =>
+    new User({
+      name: 'Ana Souza',
+      email: 'ana@example.com',
+      password: 'hash',
+      ...overrides,
+    });
+
+  it('should normalize an email the same way as the constructor', () => {
+    expect(User.normalizeEmail('  Ana@Example.COM ')).toBe('ana@example.com');
+  });
+
+  it('should normalize composed and decomposed accents to the same email', () => {
+    expect(User.normalizeEmail('Jose\u0301@example.com')).toBe(
+      User.normalizeEmail('Jos\u00e9@example.com'),
+    );
+    expect(User.normalizeEmail('Jose\u0301@example.com')).toBe(
+      'jos\u00e9@example.com',
+    );
+  });
+
+  it('should allow an active account that was not deleted to authenticate', () => {
+    expect(makeUser().canAuthenticate()).toBe(true);
+  });
+
+  it.each([
+    ['inactive', { active: false }],
+    ['deleted', { deletedAt: new Date() }],
+  ])('should not allow a %s account to authenticate', (_, overrides) => {
+    expect(makeUser(overrides).canAuthenticate()).toBe(false);
+  });
+});

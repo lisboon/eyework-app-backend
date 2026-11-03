@@ -59,4 +59,13 @@ describe('UserRepository (integration)', () => {
       { email: ['Email already registered'] },
     ]);
   });
+
+  it('should not match an email that differs only by accents', async () => {
+    await repository.create(makeUser('ana@example.com'));
+
+    await expect(repository.findByEmail('aná@example.com')).resolves.toBe(null);
+    await expect(
+      repository.create(makeUser('aná@example.com')),
+    ).resolves.toBeUndefined();
+  });
 });

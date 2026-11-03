@@ -35,6 +35,8 @@ jobs:
           --health-start-period 30s
     env:
       DATABASE_URL: mysql://root:eyework_ci@127.0.0.1:3307/eyework_test?allowPublicKeyRetrieval=true
+      JWT_SECRET: ci-jwt-secret-for-tests-only-0123456789
+      JWT_EXPIRES_IN: 15m
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

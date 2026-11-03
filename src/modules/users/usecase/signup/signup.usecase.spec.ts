@@ -16,39 +16,42 @@ describe('SignUpUseCase', () => {
     };
     const authService = {
       hashPassword: jest.fn().mockResolvedValue('hashed-password'),
+      generateToken: jest.fn().mockReturnValue('access-token'),
     };
     const useCase = new SignUpUseCase(userGateway, authService);
     return { useCase, userGateway, authService };
   };
 
-  it('should store the hashed password and return the user without it', async () => {
+  it('should store the hashed password and return the user with an access token', async () => {
     const { useCase, userGateway, authService } = makeSut();
 
     const output = await useCase.execute(input);
 
+    expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
     expect(authService.hashPassword).toHaveBeenCalledWith(
       'correct-horse-battery',
     );
-    expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
     expect(userGateway.create).toHaveBeenCalledTimes(1);
     const created: User = userGateway.create.mock.calls[0][0];
     expect(created).toBeInstanceOf(User);
     expect(created.password).toBe('hashed-password');
     expect(created.email).toBe('ana@example.com');
+    expect(authService.generateToken).toHaveBeenCalledWith({ sub: created.id });
     expect(output).toEqual({
       id: created.id,
       name: 'Ana Souza',
       email: 'ana@example.com',
+      accessToken: 'access-token',
     });
   });
 
-  it('should reject an email that is already registered', async () => {
+  it('should reject a registered email before spending time on the hash', async () => {
     const existing = new User({
       name: 'Ana',
       email: 'ana@example.com',
       password: 'hash',
     });
-    const { useCase, userGateway } = makeSut(existing);
+    const { useCase, userGateway, authService } = makeSut(existing);
 
     const error = await useCase.execute(input).catch((e: unknown) => e);
 
@@ -56,11 +59,12 @@ describe('SignUpUseCase', () => {
     expect((error as EntityValidationError).error).toEqual([
       { email: ['Email already registered'] },
     ]);
+    expect(authService.hashPassword).not.toHaveBeenCalled();
     expect(userGateway.create).not.toHaveBeenCalled();
   });
 
-  it('should reject invalid data without touching the gateway', async () => {
-    const { useCase, userGateway } = makeSut();
+  it('should reject invalid data without creating the user', async () => {
+    const { useCase, userGateway, authService } = makeSut();
 
     const error = await useCase
       .execute({ ...input, name: 'A', email: 'not-an-email' })
@@ -71,7 +75,7 @@ describe('SignUpUseCase', () => {
       { name: expect.any(Array) },
       { email: expect.any(Array) },
     ]);
-    expect(userGateway.findByEmail).not.toHaveBeenCalled();
     expect(userGateway.create).not.toHaveBeenCalled();
+    expect(authService.generateToken).not.toHaveBeenCalled();
   });
 });

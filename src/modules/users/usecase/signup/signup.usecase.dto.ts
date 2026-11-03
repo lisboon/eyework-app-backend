@@ -18,6 +18,7 @@ export interface SignUpOutputDto {
   id: string;
   name: string;
   email: string;
+  accessToken: string;
 }
 
 export type SignUpUseCaseInterface = BaseUseCase<
