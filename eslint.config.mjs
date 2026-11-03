@@ -48,8 +48,8 @@ export default [
     },
   },
   {
-    files: ['src/domain/**/*.ts'],
-    ignores: ['src/domain/**/repository/**', 'src/domain/**/factory/**'],
+    files: ['src/modules/**/*.ts'],
+    ignores: ['src/modules/**/repository/**', 'src/modules/**/factory/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -59,8 +59,8 @@ export default [
   },
   {
     files: [
-      'src/domain/**/repository/**/*.ts',
-      'src/domain/**/factory/**/*.ts',
+      'src/modules/**/repository/**/*.ts',
+      'src/modules/**/factory/**/*.ts',
     ],
     rules: {
       'no-restricted-imports': [
