@@ -2,6 +2,7 @@ import { BadLoginError } from '@/modules/@shared/domain/errors/bad-login.error';
 import { User } from '../../domain/user.entity';
 import type { UserGateway } from '../../gateway/user.gateway';
 import type { AuthUserServiceInterface } from '../../service/auth.user.service';
+import type { SessionServiceInterface } from '../../service/session.service';
 import type {
   LoginInputDto,
   LoginOutputDto,
@@ -13,8 +14,9 @@ export class LoginUseCase implements LoginUseCaseInterface {
     private readonly userGateway: Pick<UserGateway, 'findByEmail'>,
     private readonly authService: Pick<
       AuthUserServiceInterface,
-      'comparePassword' | 'generateToken'
+      'comparePassword'
     >,
+    private readonly sessionService: SessionServiceInterface,
   ) {}
 
   async execute(input: LoginInputDto): Promise<LoginOutputDto> {
@@ -29,6 +31,6 @@ export class LoginUseCase implements LoginUseCaseInterface {
       throw new BadLoginError();
     }
 
-    return { accessToken: this.authService.generateToken({ sub: user.id }) };
+    return this.sessionService.issue(user.id);
   }
 }

@@ -3,10 +3,11 @@ import { authConfigFromEnv } from './auth.config';
 describe('authConfigFromEnv', () => {
   const secret = 'a'.repeat(32);
 
-  it('should read the secret and default the token lifetime to 15 minutes', () => {
+  it('should read the secret and default the lifetimes to 15 minutes and 30 days', () => {
     expect(authConfigFromEnv({ JWT_SECRET: secret })).toEqual({
       jwtSecret: secret,
       jwtExpiresInSeconds: 900,
+      refreshTokenExpiresInSeconds: 2592000,
     });
   });
 
@@ -19,9 +20,11 @@ describe('authConfigFromEnv', () => {
     const config = authConfigFromEnv({
       JWT_SECRET: secret,
       JWT_EXPIRES_IN: value,
+      REFRESH_TOKEN_EXPIRES_IN: value,
     });
 
     expect(config.jwtExpiresInSeconds).toBe(seconds);
+    expect(config.refreshTokenExpiresInSeconds).toBe(seconds);
   });
 
   it.each([[undefined], ['short-secret']])(
@@ -39,6 +42,12 @@ describe('authConfigFromEnv', () => {
       expect(() =>
         authConfigFromEnv({ JWT_SECRET: secret, JWT_EXPIRES_IN: value }),
       ).toThrow('JWT_EXPIRES_IN');
+      expect(() =>
+        authConfigFromEnv({
+          JWT_SECRET: secret,
+          REFRESH_TOKEN_EXPIRES_IN: value,
+        }),
+      ).toThrow('REFRESH_TOKEN_EXPIRES_IN');
     },
   );
 });

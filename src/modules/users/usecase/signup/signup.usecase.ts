@@ -3,6 +3,7 @@ import { User } from '../../domain/user.entity';
 import { emailAlreadyRegisteredError } from '../../domain/user.errors';
 import type { UserGateway } from '../../gateway/user.gateway';
 import type { AuthUserServiceInterface } from '../../service/auth.user.service';
+import type { SessionServiceInterface } from '../../service/session.service';
 import type {
   SignUpInputDto,
   SignUpOutputDto,
@@ -14,8 +15,9 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
     private readonly userGateway: Pick<UserGateway, 'findByEmail' | 'create'>,
     private readonly authService: Pick<
       AuthUserServiceInterface,
-      'hashPassword' | 'generateToken'
+      'hashPassword'
     >,
+    private readonly sessionService: SessionServiceInterface,
   ) {}
 
   async execute(input: SignUpInputDto): Promise<SignUpOutputDto> {
@@ -39,7 +41,7 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
       id: user.id,
       name: user.name,
       email: user.email,
-      accessToken: this.authService.generateToken({ sub: user.id }),
+      ...(await this.sessionService.issue(user.id)),
     };
   }
 }

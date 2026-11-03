@@ -8,6 +8,11 @@ describe('SignUpUseCase', () => {
     email: 'Ana@Example.com',
     password: 'correct-horse-battery',
   };
+  const session = {
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    refreshTokenExpiresAt: new Date('2026-12-03T00:00:00.000Z'),
+  };
 
   const makeSut = (existingUser: User | null = null) => {
     const userGateway = {
@@ -16,14 +21,16 @@ describe('SignUpUseCase', () => {
     };
     const authService = {
       hashPassword: jest.fn().mockResolvedValue('hashed-password'),
-      generateToken: jest.fn().mockReturnValue('access-token'),
     };
-    const useCase = new SignUpUseCase(userGateway, authService);
-    return { useCase, userGateway, authService };
+    const sessionService = {
+      issue: jest.fn().mockResolvedValue(session),
+    };
+    const useCase = new SignUpUseCase(userGateway, authService, sessionService);
+    return { useCase, userGateway, authService, sessionService };
   };
 
-  it('should store the hashed password and return the user with an access token', async () => {
-    const { useCase, userGateway, authService } = makeSut();
+  it('should store the hashed password and start a session for the new user', async () => {
+    const { useCase, userGateway, authService, sessionService } = makeSut();
 
     const output = await useCase.execute(input);
 
@@ -36,12 +43,15 @@ describe('SignUpUseCase', () => {
     expect(created).toBeInstanceOf(User);
     expect(created.password).toBe('hashed-password');
     expect(created.email).toBe('ana@example.com');
-    expect(authService.generateToken).toHaveBeenCalledWith({ sub: created.id });
+    expect(sessionService.issue).toHaveBeenCalledWith(created.id);
+    expect(userGateway.create.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionService.issue.mock.invocationCallOrder[0],
+    );
     expect(output).toEqual({
       id: created.id,
       name: 'Ana Souza',
       email: 'ana@example.com',
-      accessToken: 'access-token',
+      ...session,
     });
   });
 
@@ -64,7 +74,7 @@ describe('SignUpUseCase', () => {
   });
 
   it('should reject invalid data without creating the user', async () => {
-    const { useCase, userGateway, authService } = makeSut();
+    const { useCase, userGateway, sessionService } = makeSut();
 
     const error = await useCase
       .execute({ ...input, name: 'A', email: 'not-an-email' })
@@ -76,6 +86,6 @@ describe('SignUpUseCase', () => {
       { email: expect.any(Array) },
     ]);
     expect(userGateway.create).not.toHaveBeenCalled();
-    expect(authService.generateToken).not.toHaveBeenCalled();
+    expect(sessionService.issue).not.toHaveBeenCalled();
   });
 });
