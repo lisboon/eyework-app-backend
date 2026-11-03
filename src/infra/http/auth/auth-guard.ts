@@ -36,6 +36,6 @@ export class AuthGuard implements CanActivate {
 }
 
 function bearerToken(header: string | undefined): string | undefined {
-  const [type, token] = header?.split(' ') ?? [];
-  return type === 'Bearer' && token ? token : undefined;
+  const [scheme, token] = header?.split(' ') ?? [];
+  return scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
 }

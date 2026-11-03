@@ -19,14 +19,17 @@ describe('AuthGuard', () => {
     return { guard, authUserService };
   };
 
-  it('should accept a valid bearer token and attach the user id', () => {
-    const { guard, authUserService } = makeSut();
-    const { context, request } = makeContext('Bearer valid-token');
+  it.each(['Bearer', 'bearer', 'BEARER'])(
+    'should accept the %s scheme and attach the user id',
+    (scheme) => {
+      const { guard, authUserService } = makeSut();
+      const { context, request } = makeContext(`${scheme} Valid-Token`);
 
-    expect(guard.canActivate(context)).toBe(true);
-    expect(authUserService.verifyToken).toHaveBeenCalledWith('valid-token');
-    expect(request.user).toEqual({ id: 'user-1' });
-  });
+      expect(guard.canActivate(context)).toBe(true);
+      expect(authUserService.verifyToken).toHaveBeenCalledWith('Valid-Token');
+      expect(request.user).toEqual({ id: 'user-1' });
+    },
+  );
 
   it.each([
     [undefined],
