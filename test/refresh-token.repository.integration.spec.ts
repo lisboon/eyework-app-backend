@@ -108,6 +108,39 @@ describe('RefreshTokenRepository (integration)', () => {
     expect((await reload(late))?.isFamilyRevoked()).toBe(true);
   });
 
+  it('should delete only the families whose tokens all expired, with their tokens', async () => {
+    const now = new Date('2026-12-03T03:00:00.000Z');
+    const tokenOf = (expiresAt: Date, familyId?: string) =>
+      new RefreshToken({
+        userId: user.id,
+        familyId,
+        tokenHash: RefreshToken.hash(RefreshToken.generate()),
+        expiresAt,
+      });
+    const past = new Date(now.getTime() - 1000);
+    const future = new Date(now.getTime() + 1000);
+    const expired = tokenOf(past);
+    const expiredNext = tokenOf(past, expired.familyId);
+    const live = tokenOf(future);
+    const revokedLive = tokenOf(future);
+    for (const token of [expired, expiredNext, live, revokedLive]) {
+      await repository.create(token);
+    }
+    await repository.revokeFamily(revokedLive.familyId);
+
+    await expect(repository.deleteExpiredFamilies(now)).resolves.toBe(1);
+
+    const families = await prisma.refreshTokenFamily.findMany({
+      orderBy: { id: 'asc' },
+    });
+    expect(families.map((family) => family.id)).toEqual(
+      [live.familyId, revokedLive.familyId].sort(),
+    );
+    await expect(
+      prisma.refreshToken.count({ where: { familyId: expired.familyId } }),
+    ).resolves.toBe(0);
+  });
+
   it('should delete the families and tokens together with the account', async () => {
     await repository.create(makeToken());
 

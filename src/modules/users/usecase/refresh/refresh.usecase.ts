@@ -46,7 +46,7 @@ export class RefreshUseCase implements RefreshUseCaseInterface {
 
     const session = await this.transactionManager.execute(async (trx) =>
       (await this.refreshTokenGateway.revoke(current.id, trx))
-        ? this.sessionService.renew(user.id, current.familyId, trx)
+        ? this.sessionService.renew(current, trx)
         : undefined,
     );
     if (!session) {

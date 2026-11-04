@@ -61,6 +61,13 @@ export class RefreshTokenRepository implements RefreshTokenGateway {
     });
   }
 
+  async deleteExpiredFamilies(now: Date): Promise<number> {
+    const { count } = await this.prisma.refreshTokenFamily.deleteMany({
+      where: { tokens: { none: { expiresAt: { gt: now } } } },
+    });
+    return count;
+  }
+
   private toEntity(row: RefreshTokenRow): RefreshToken {
     return new RefreshToken({
       id: row.id,

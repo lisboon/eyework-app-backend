@@ -7,11 +7,11 @@ describe('SessionService', () => {
     const refreshTokenGateway = {
       create: jest.fn().mockResolvedValue(undefined),
     };
-    const authService = {
+    const tokenService = {
       generateToken: jest.fn().mockReturnValue('access-token'),
     };
-    const service = new SessionService(refreshTokenGateway, authService, 3600);
-    return { service, refreshTokenGateway, authService };
+    const service = new SessionService(refreshTokenGateway, tokenService, 3600);
+    return { service, refreshTokenGateway, tokenService };
   };
 
   const storedToken = (gateway: { create: jest.Mock }): RefreshToken =>
@@ -25,7 +25,7 @@ describe('SessionService', () => {
     jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2026-11-03T12:00:00.000Z').getTime());
-    const { service, refreshTokenGateway, authService } = makeSut();
+    const { service, refreshTokenGateway, tokenService } = makeSut();
 
     const session = await service.start('user-1');
 
@@ -34,7 +34,7 @@ describe('SessionService', () => {
     expect(stored.tokenHash).toBe(RefreshToken.hash(session.refreshToken));
     expect(stored.tokenHash).not.toBe(session.refreshToken);
     expect(stored.expiresAt).toEqual(new Date('2026-11-03T13:00:00.000Z'));
-    expect(authService.generateToken).toHaveBeenCalledWith({ sub: 'user-1' });
+    expect(tokenService.generateToken).toHaveBeenCalledWith({ sub: 'user-1' });
     expect(session).toEqual({
       accessToken: 'access-token',
       refreshToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
@@ -59,17 +59,30 @@ describe('SessionService', () => {
     expect(first[0].familyId).not.toBe(second[0].familyId);
   });
 
-  it('should keep the family when it renews a session, inside the given transaction', async () => {
+  it('should keep the family, the user and the expiry when it renews a session, inside the given transaction', async () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-11-20T12:00:00.000Z').getTime());
     const { service, refreshTokenGateway } = makeSut();
     const trx = new (class extends TransactionContext {
       constructor() {
         super();
       }
     })();
+    const current = new RefreshToken({
+      userId: 'user-1',
+      familyId: 'family-1',
+      tokenHash: 'hash',
+      expiresAt: new Date('2026-12-03T12:00:00.000Z'),
+    });
 
-    await service.renew('user-1', 'family-1', trx);
+    const session = await service.renew(current, trx);
 
-    expect(storedToken(refreshTokenGateway).familyId).toBe('family-1');
+    const stored = storedToken(refreshTokenGateway);
+    expect(stored.familyId).toBe('family-1');
+    expect(stored.userId).toBe('user-1');
+    expect(stored.expiresAt).toEqual(current.expiresAt);
+    expect(session.refreshTokenExpiresAt).toEqual(current.expiresAt);
     expect(refreshTokenGateway.create.mock.calls[0][1]).toBe(trx);
   });
 });

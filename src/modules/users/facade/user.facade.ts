@@ -1,4 +1,8 @@
 import type {
+  DeleteExpiredSessionsOutputDto,
+  DeleteExpiredSessionsUseCaseInterface,
+} from '../usecase/delete-expired-sessions/delete-expired-sessions.usecase.dto';
+import type {
   FindMeInputDto,
   FindMeOutputDto,
   FindMeUseCaseInterface,
@@ -30,6 +34,7 @@ export class UserFacade {
     private readonly findMeUseCase: FindMeUseCaseInterface,
     private readonly refreshUseCase: RefreshUseCaseInterface,
     private readonly logoutUseCase: LogoutUseCaseInterface,
+    private readonly deleteExpiredSessionsUseCase: DeleteExpiredSessionsUseCaseInterface,
   ) {}
 
   signUp(input: SignUpInputDto): Promise<SignUpOutputDto> {
@@ -50,5 +55,9 @@ export class UserFacade {
 
   logout(input: LogoutInputDto): Promise<void> {
     return this.logoutUseCase.execute(input);
+  }
+
+  deleteExpiredSessions(): Promise<DeleteExpiredSessionsOutputDto> {
+    return this.deleteExpiredSessionsUseCase.execute();
   }
 }

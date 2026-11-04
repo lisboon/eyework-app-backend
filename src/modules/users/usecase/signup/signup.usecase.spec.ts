@@ -34,8 +34,8 @@ describe('SignUpUseCase', () => {
       findByEmail: jest.fn().mockResolvedValue(existingUser),
       create: jest.fn().mockResolvedValue(undefined),
     };
-    const authService = {
-      hashPassword: jest.fn().mockResolvedValue('hashed-password'),
+    const passwordService = {
+      hash: jest.fn().mockResolvedValue('hashed-password'),
     };
     const sessionService = {
       start: jest.fn().mockResolvedValue(session),
@@ -43,14 +43,14 @@ describe('SignUpUseCase', () => {
     const useCase = new SignUpUseCase(
       transactionManager as unknown as TransactionManager,
       userGateway,
-      authService,
+      passwordService,
       sessionService,
     );
     return {
       useCase,
       transactionManager,
       userGateway,
-      authService,
+      passwordService,
       sessionService,
     };
   };
@@ -93,7 +93,7 @@ describe('SignUpUseCase', () => {
       email: 'ana@example.com',
       password: 'hash',
     });
-    const { useCase, transactionManager, userGateway, authService } =
+    const { useCase, transactionManager, userGateway, passwordService } =
       makeSut(existing);
 
     const error = await useCase.execute(input).catch((e: unknown) => e);
@@ -103,7 +103,7 @@ describe('SignUpUseCase', () => {
     expect((error as EntityValidationError).error).toEqual([
       { email: ['Email already registered'] },
     ]);
-    expect(authService.hashPassword).not.toHaveBeenCalled();
+    expect(passwordService.hash).not.toHaveBeenCalled();
     expect(transactionManager.execute).not.toHaveBeenCalled();
   });
 

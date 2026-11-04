@@ -111,8 +111,7 @@ describe('RefreshUseCase', () => {
     expect(transactionManager.execute).toHaveBeenCalledTimes(1);
     expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1', trx);
     expect(sessionService.renew).toHaveBeenCalledWith(
-      'user-1',
-      'family-1',
+      expect.objectContaining({ id: 'token-1', familyId: 'family-1' }),
       trx,
     );
     expect(refreshTokenGateway.revokeFamily).not.toHaveBeenCalled();

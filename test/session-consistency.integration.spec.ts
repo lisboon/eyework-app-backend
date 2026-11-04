@@ -19,7 +19,7 @@ describe('Session consistency (integration)', () => {
   let sessions: SessionService;
   let user: User;
 
-  const authService = { generateToken: () => 'access-token' };
+  const tokenService = { generateToken: () => 'access-token' };
   const refreshWith = (sessionService: SessionService) =>
     new RefreshUseCase(transactions, tokens, users, sessionService);
   const refresh = (refreshToken: string) =>
@@ -38,7 +38,7 @@ describe('Session consistency (integration)', () => {
       },
     };
     return {
-      sessions: new SessionService(gateway, authService, 3600),
+      sessions: new SessionService(gateway, tokenService, 3600),
       reached,
       release,
     };
@@ -50,7 +50,7 @@ describe('Session consistency (integration)', () => {
         throw new Error('session storage failed');
       },
     },
-    authService,
+    tokenService,
     3600,
   );
 
@@ -60,7 +60,7 @@ describe('Session consistency (integration)', () => {
     transactions = new PrismaTransactionManager(prisma);
     tokens = new RefreshTokenRepository(prisma);
     users = new UserRepository(prisma);
-    sessions = new SessionService(tokens, authService, 3600);
+    sessions = new SessionService(tokens, tokenService, 3600);
   });
 
   beforeEach(async () => {
@@ -147,7 +147,7 @@ describe('Session consistency (integration)', () => {
       email: 'bia@example.com',
       password: 'correct-horse-battery',
     };
-    const hasher = { hashPassword: async () => 'hashed-password' };
+    const hasher = { hash: async () => 'hashed-password' };
 
     it('should not keep the account when the first session cannot be stored', async () => {
       const signUp = new SignUpUseCase(

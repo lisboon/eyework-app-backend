@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { AuthUserService } from '@/modules/users/service/auth.user.service';
+import { TokenService } from '@/modules/users/service/token/token.service';
 
 export interface AuthenticatedUser {
   id: string;
@@ -15,7 +15,7 @@ export type AuthenticatedRequest = Request & { user?: AuthenticatedUser };
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly authUserService: AuthUserService) {}
+  constructor(private readonly tokenService: TokenService) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -25,7 +25,7 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      request.user = { id: this.authUserService.verifyToken(token).sub };
+      request.user = { id: this.tokenService.verifyToken(token).sub };
     } catch (error) {
       throw new UnauthorizedException('Invalid access token', {
         cause: error,
