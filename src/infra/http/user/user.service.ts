@@ -8,6 +8,11 @@ import type {
   LoginInputDto,
   LoginOutputDto,
 } from '@/modules/users/usecase/login/login.usecase.dto';
+import type { LogoutInputDto } from '@/modules/users/usecase/logout/logout.usecase.dto';
+import type {
+  RefreshInputDto,
+  RefreshOutputDto,
+} from '@/modules/users/usecase/refresh/refresh.usecase.dto';
 import type {
   SignUpInputDto,
   SignUpOutputDto,
@@ -27,5 +32,13 @@ export class UserService {
 
   findMe(input: FindMeInputDto): Promise<FindMeOutputDto> {
     return this.userFacade.findMe(input);
+  }
+
+  refresh(input: RefreshInputDto): Promise<RefreshOutputDto> {
+    return this.userFacade.refresh(input);
+  }
+
+  logout(input: LogoutInputDto): Promise<void> {
+    return this.userFacade.logout(input);
   }
 }

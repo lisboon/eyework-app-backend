@@ -5,18 +5,21 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
+  Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import type { FindMeOutputDto } from '@/modules/users/usecase/find-me/find-me.usecase.dto';
-import {
-  LoginInput,
-  type LoginOutputDto,
-} from '@/modules/users/usecase/login/login.usecase.dto';
-import {
-  SignUpInput,
-  type SignUpOutputDto,
-} from '@/modules/users/usecase/signup/signup.usecase.dto';
+import { LoginInput } from '@/modules/users/usecase/login/login.usecase.dto';
+import { SignUpInput } from '@/modules/users/usecase/signup/signup.usecase.dto';
 import { AuthGuard, type AuthenticatedUser } from '../auth/auth-guard';
+import {
+  clearRefreshTokenCookie,
+  readRefreshTokenCookie,
+  sendSession,
+} from '../auth/refresh-token.cookie';
 import { CurrentUser } from '../shared/current-user.decorator';
 import { UserService } from './user.service';
 
@@ -25,14 +28,47 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post('auth/signup')
-  signUp(@Body() body: SignUpInput): Promise<SignUpOutputDto> {
-    return this.userService.signUp(body);
+  async signUp(
+    @Body() body: SignUpInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { id, name, email, ...session } = await this.userService.signUp(body);
+    return { id, name, email, ...sendSession(res, session) };
   }
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() body: LoginInput): Promise<LoginOutputDto> {
-    return this.userService.login(body);
+  async login(
+    @Body() body: LoginInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return sendSession(res, await this.userService.login(body));
+  }
+
+  @Post('auth/refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = readRefreshTokenCookie(req);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Missing refresh token');
+    }
+    return sendSession(res, await this.userService.refresh({ refreshToken }));
+  }
+
+  @Post('auth/logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const refreshToken = readRefreshTokenCookie(req);
+    if (refreshToken) {
+      await this.userService.logout({ refreshToken });
+    }
+    clearRefreshTokenCookie(res);
   }
 
   @Get('users/me')

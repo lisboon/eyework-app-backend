@@ -1,14 +1,13 @@
 import { IsByteLength, IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import type { BaseUseCase } from '@/modules/@shared/usecase/base.usecase';
+import type { Session } from '../../service/session.service';
 
 export interface LoginInputDto {
   email: string;
   password: string;
 }
 
-export interface LoginOutputDto {
-  accessToken: string;
-}
+export type LoginOutputDto = Session;
 
 export type LoginUseCaseInterface = BaseUseCase<LoginInputDto, LoginOutputDto>;
 

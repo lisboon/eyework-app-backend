@@ -7,6 +7,7 @@ import {
   MinLength,
 } from 'class-validator';
 import type { BaseUseCase } from '@/modules/@shared/usecase/base.usecase';
+import type { Session } from '../../service/session.service';
 
 export interface SignUpInputDto {
   name: string;
@@ -14,11 +15,10 @@ export interface SignUpInputDto {
   password: string;
 }
 
-export interface SignUpOutputDto {
+export interface SignUpOutputDto extends Session {
   id: string;
   name: string;
   email: string;
-  accessToken: string;
 }
 
 export type SignUpUseCaseInterface = BaseUseCase<

@@ -7,6 +7,11 @@ describe('LoginUseCase', () => {
     email: ' Ana@Example.com ',
     password: 'correct-horse-battery',
   };
+  const session = {
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    refreshTokenExpiresAt: new Date('2026-12-03T00:00:00.000Z'),
+  };
 
   const makeUser = (overrides: Partial<UserProps> = {}) =>
     new User({
@@ -23,24 +28,25 @@ describe('LoginUseCase', () => {
     };
     const authService = {
       comparePassword: jest.fn().mockResolvedValue(passwordMatches),
-      generateToken: jest.fn().mockReturnValue('access-token'),
     };
-    const useCase = new LoginUseCase(userGateway, authService);
-    return { useCase, userGateway, authService };
+    const sessionService = {
+      start: jest.fn().mockResolvedValue(session),
+    };
+    const useCase = new LoginUseCase(userGateway, authService, sessionService);
+    return { useCase, userGateway, authService, sessionService };
   };
 
-  it('should return an access token when the password matches', async () => {
-    const { useCase, userGateway, authService } = makeSut(makeUser());
+  it('should start a session when the password matches', async () => {
+    const { useCase, userGateway, authService, sessionService } =
+      makeSut(makeUser());
 
-    await expect(useCase.execute(input)).resolves.toEqual({
-      accessToken: 'access-token',
-    });
+    await expect(useCase.execute(input)).resolves.toEqual(session);
     expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
     expect(authService.comparePassword).toHaveBeenCalledWith(
       'correct-horse-battery',
       'stored-hash',
     );
-    expect(authService.generateToken).toHaveBeenCalledWith({ sub: 'user-1' });
+    expect(sessionService.start).toHaveBeenCalledWith('user-1');
   });
 
   it('should still compare the password when the email is not registered', async () => {
@@ -61,7 +67,10 @@ describe('LoginUseCase', () => {
   ])(
     'should reject with the same error when %s',
     async (_, user, passwordMatches) => {
-      const { useCase, authService } = makeSut(user, passwordMatches);
+      const { useCase, authService, sessionService } = makeSut(
+        user,
+        passwordMatches,
+      );
 
       const error = await useCase.execute(input).catch((e: unknown) => e);
 
@@ -70,7 +79,7 @@ describe('LoginUseCase', () => {
         'Invalid email or password',
       );
       expect(authService.comparePassword).toHaveBeenCalledTimes(1);
-      expect(authService.generateToken).not.toHaveBeenCalled();
+      expect(sessionService.start).not.toHaveBeenCalled();
     },
   );
 });

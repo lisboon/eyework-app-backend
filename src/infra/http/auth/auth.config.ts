@@ -1,6 +1,9 @@
+export const AUTH_CONFIG = Symbol('AUTH_CONFIG');
+
 export interface AuthConfig {
   jwtSecret: string;
   jwtExpiresInSeconds: number;
+  refreshTokenExpiresInSeconds: number;
 }
 
 const MIN_SECRET_LENGTH = 32;
@@ -16,15 +19,22 @@ export function authConfigFromEnv(env: NodeJS.ProcessEnv): AuthConfig {
 
   return {
     jwtSecret,
-    jwtExpiresInSeconds: toSeconds(env.JWT_EXPIRES_IN ?? '15m'),
+    jwtExpiresInSeconds: toSeconds(
+      'JWT_EXPIRES_IN',
+      env.JWT_EXPIRES_IN ?? '15m',
+    ),
+    refreshTokenExpiresInSeconds: toSeconds(
+      'REFRESH_TOKEN_EXPIRES_IN',
+      env.REFRESH_TOKEN_EXPIRES_IN ?? '30d',
+    ),
   };
 }
 
-function toSeconds(duration: string): number {
+function toSeconds(name: string, duration: string): number {
   const match = /^([1-9]\d*)([smhd])$/.exec(duration);
   if (!match) {
     throw new Error(
-      `JWT_EXPIRES_IN must look like 30s, 15m, 2h or 1d. Received "${duration}".`,
+      `${name} must look like 30s, 15m, 2h or 1d. Received "${duration}".`,
     );
   }
 

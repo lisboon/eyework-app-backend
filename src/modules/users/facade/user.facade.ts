@@ -9,6 +9,15 @@ import type {
   LoginUseCaseInterface,
 } from '../usecase/login/login.usecase.dto';
 import type {
+  LogoutInputDto,
+  LogoutUseCaseInterface,
+} from '../usecase/logout/logout.usecase.dto';
+import type {
+  RefreshInputDto,
+  RefreshOutputDto,
+  RefreshUseCaseInterface,
+} from '../usecase/refresh/refresh.usecase.dto';
+import type {
   SignUpInputDto,
   SignUpOutputDto,
   SignUpUseCaseInterface,
@@ -19,6 +28,8 @@ export class UserFacade {
     private readonly signUpUseCase: SignUpUseCaseInterface,
     private readonly loginUseCase: LoginUseCaseInterface,
     private readonly findMeUseCase: FindMeUseCaseInterface,
+    private readonly refreshUseCase: RefreshUseCaseInterface,
+    private readonly logoutUseCase: LogoutUseCaseInterface,
   ) {}
 
   signUp(input: SignUpInputDto): Promise<SignUpOutputDto> {
@@ -31,5 +42,13 @@ export class UserFacade {
 
   findMe(input: FindMeInputDto): Promise<FindMeOutputDto> {
     return this.findMeUseCase.execute(input);
+  }
+
+  refresh(input: RefreshInputDto): Promise<RefreshOutputDto> {
+    return this.refreshUseCase.execute(input);
+  }
+
+  logout(input: LogoutInputDto): Promise<void> {
+    return this.logoutUseCase.execute(input);
   }
 }

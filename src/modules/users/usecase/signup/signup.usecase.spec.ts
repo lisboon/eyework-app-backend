@@ -1,4 +1,8 @@
 import { EntityValidationError } from '@/modules/@shared/domain/errors/unprocessable-entity.error';
+import {
+  TransactionContext,
+  type TransactionManager,
+} from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { User } from '../../domain/user.entity';
 import { SignUpUseCase } from './signup.usecase';
 
@@ -8,41 +12,79 @@ describe('SignUpUseCase', () => {
     email: 'Ana@Example.com',
     password: 'correct-horse-battery',
   };
+  const session = {
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    refreshTokenExpiresAt: new Date('2026-12-03T00:00:00.000Z'),
+  };
+  const trx = new (class extends TransactionContext {
+    constructor() {
+      super();
+    }
+  })();
 
   const makeSut = (existingUser: User | null = null) => {
+    const transactionManager = {
+      execute: jest.fn(
+        async (work: (context: TransactionContext) => Promise<unknown>) =>
+          work(trx),
+      ),
+    };
     const userGateway = {
       findByEmail: jest.fn().mockResolvedValue(existingUser),
       create: jest.fn().mockResolvedValue(undefined),
     };
     const authService = {
       hashPassword: jest.fn().mockResolvedValue('hashed-password'),
-      generateToken: jest.fn().mockReturnValue('access-token'),
     };
-    const useCase = new SignUpUseCase(userGateway, authService);
-    return { useCase, userGateway, authService };
+    const sessionService = {
+      start: jest.fn().mockResolvedValue(session),
+    };
+    const useCase = new SignUpUseCase(
+      transactionManager as unknown as TransactionManager,
+      userGateway,
+      authService,
+      sessionService,
+    );
+    return {
+      useCase,
+      transactionManager,
+      userGateway,
+      authService,
+      sessionService,
+    };
   };
 
-  it('should store the hashed password and return the user with an access token', async () => {
-    const { useCase, userGateway, authService } = makeSut();
+  it('should store the user and the first session in one transaction', async () => {
+    const { useCase, transactionManager, userGateway, sessionService } =
+      makeSut();
 
     const output = await useCase.execute(input);
 
-    expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
-    expect(authService.hashPassword).toHaveBeenCalledWith(
-      'correct-horse-battery',
-    );
-    expect(userGateway.create).toHaveBeenCalledTimes(1);
+    expect(transactionManager.execute).toHaveBeenCalledTimes(1);
     const created: User = userGateway.create.mock.calls[0][0];
+    expect(userGateway.create).toHaveBeenCalledWith(created, trx);
+    expect(sessionService.start).toHaveBeenCalledWith(created.id, trx);
+    expect(userGateway.create.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionService.start.mock.invocationCallOrder[0],
+    );
     expect(created).toBeInstanceOf(User);
     expect(created.password).toBe('hashed-password');
     expect(created.email).toBe('ana@example.com');
-    expect(authService.generateToken).toHaveBeenCalledWith({ sub: created.id });
     expect(output).toEqual({
       id: created.id,
       name: 'Ana Souza',
       email: 'ana@example.com',
-      accessToken: 'access-token',
+      ...session,
     });
+  });
+
+  it('should fail without a session when the transaction fails', async () => {
+    const { useCase, transactionManager } = makeSut();
+    const failure = new Error('session storage failed');
+    transactionManager.execute.mockRejectedValueOnce(failure);
+
+    await expect(useCase.execute(input)).rejects.toBe(failure);
   });
 
   it('should reject a registered email before spending time on the hash', async () => {
@@ -51,20 +93,22 @@ describe('SignUpUseCase', () => {
       email: 'ana@example.com',
       password: 'hash',
     });
-    const { useCase, userGateway, authService } = makeSut(existing);
+    const { useCase, transactionManager, userGateway, authService } =
+      makeSut(existing);
 
     const error = await useCase.execute(input).catch((e: unknown) => e);
 
+    expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
     expect(error).toBeInstanceOf(EntityValidationError);
     expect((error as EntityValidationError).error).toEqual([
       { email: ['Email already registered'] },
     ]);
     expect(authService.hashPassword).not.toHaveBeenCalled();
-    expect(userGateway.create).not.toHaveBeenCalled();
+    expect(transactionManager.execute).not.toHaveBeenCalled();
   });
 
-  it('should reject invalid data without creating the user', async () => {
-    const { useCase, userGateway, authService } = makeSut();
+  it('should reject invalid data without opening a transaction', async () => {
+    const { useCase, transactionManager, userGateway } = makeSut();
 
     const error = await useCase
       .execute({ ...input, name: 'A', email: 'not-an-email' })
@@ -75,7 +119,7 @@ describe('SignUpUseCase', () => {
       { name: expect.any(Array) },
       { email: expect.any(Array) },
     ]);
+    expect(transactionManager.execute).not.toHaveBeenCalled();
     expect(userGateway.create).not.toHaveBeenCalled();
-    expect(authService.generateToken).not.toHaveBeenCalled();
   });
 });
