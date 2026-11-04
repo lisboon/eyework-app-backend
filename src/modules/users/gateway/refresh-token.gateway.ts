@@ -6,4 +6,5 @@ export interface RefreshTokenGateway {
   findByTokenHash(tokenHash: string): Promise<RefreshToken | null>;
   revoke(id: string, trx?: TransactionContext): Promise<boolean>;
   revokeFamily(familyId: string): Promise<void>;
+  deleteExpiredFamilies(now: Date): Promise<number>;
 }

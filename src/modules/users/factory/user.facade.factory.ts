@@ -6,6 +6,7 @@ import { UserRepository } from '../repository/user.repository';
 import { PasswordService } from '../service/password.service';
 import { SessionService } from '../service/session.service';
 import type { TokenServiceInterface } from '../service/token/token.service';
+import { DeleteExpiredSessionsUseCase } from '../usecase/delete-expired-sessions/delete-expired-sessions.usecase';
 import { FindMeUseCase } from '../usecase/find-me/find-me.usecase';
 import { LoginUseCase } from '../usecase/login/login.usecase';
 import { LogoutUseCase } from '../usecase/logout/logout.usecase';
@@ -44,6 +45,7 @@ export class UserFacadeFactory {
         sessionService,
       ),
       new LogoutUseCase(refreshTokenRepository),
+      new DeleteExpiredSessionsUseCase(refreshTokenRepository),
     );
   }
 }

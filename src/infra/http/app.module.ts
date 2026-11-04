@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from '@/infra/database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, HealthModule, UserModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    DatabaseModule,
+    AuthModule,
+    HealthModule,
+    UserModule,
+  ],
 })
 export class AppModule {}
