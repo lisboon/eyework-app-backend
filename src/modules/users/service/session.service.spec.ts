@@ -59,17 +59,30 @@ describe('SessionService', () => {
     expect(first[0].familyId).not.toBe(second[0].familyId);
   });
 
-  it('should keep the family when it renews a session, inside the given transaction', async () => {
+  it('should keep the family, the user and the expiry when it renews a session, inside the given transaction', async () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-11-20T12:00:00.000Z').getTime());
     const { service, refreshTokenGateway } = makeSut();
     const trx = new (class extends TransactionContext {
       constructor() {
         super();
       }
     })();
+    const current = new RefreshToken({
+      userId: 'user-1',
+      familyId: 'family-1',
+      tokenHash: 'hash',
+      expiresAt: new Date('2026-12-03T12:00:00.000Z'),
+    });
 
-    await service.renew('user-1', 'family-1', trx);
+    const session = await service.renew(current, trx);
 
-    expect(storedToken(refreshTokenGateway).familyId).toBe('family-1');
+    const stored = storedToken(refreshTokenGateway);
+    expect(stored.familyId).toBe('family-1');
+    expect(stored.userId).toBe('user-1');
+    expect(stored.expiresAt).toEqual(current.expiresAt);
+    expect(session.refreshTokenExpiresAt).toEqual(current.expiresAt);
     expect(refreshTokenGateway.create.mock.calls[0][1]).toBe(trx);
   });
 });

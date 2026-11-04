@@ -11,11 +11,13 @@ export interface Session {
 
 export interface SessionServiceInterface {
   start(userId: string, trx?: TransactionContext): Promise<Session>;
-  renew(
-    userId: string,
-    familyId: string,
-    trx?: TransactionContext,
-  ): Promise<Session>;
+  renew(current: RefreshToken, trx?: TransactionContext): Promise<Session>;
+}
+
+interface FamilyOfNextToken {
+  userId: string;
+  familyId?: string;
+  expiresAt: Date;
 }
 
 export class SessionService implements SessionServiceInterface {
@@ -26,32 +28,34 @@ export class SessionService implements SessionServiceInterface {
   ) {}
 
   start(userId: string, trx?: TransactionContext): Promise<Session> {
-    return this.issue(userId, { trx });
+    const expiresAt = new Date(Date.now() + this.refreshTokenTtlSeconds * 1000);
+    return this.issue({ userId, expiresAt }, trx);
   }
 
-  renew(
-    userId: string,
-    familyId: string,
-    trx?: TransactionContext,
-  ): Promise<Session> {
-    return this.issue(userId, { familyId, trx });
+  renew(current: RefreshToken, trx?: TransactionContext): Promise<Session> {
+    return this.issue(
+      {
+        userId: current.userId,
+        familyId: current.familyId,
+        expiresAt: current.expiresAt,
+      },
+      trx,
+    );
   }
 
   private async issue(
-    userId: string,
-    { familyId, trx }: { familyId?: string; trx?: TransactionContext },
+    family: FamilyOfNextToken,
+    trx?: TransactionContext,
   ): Promise<Session> {
     const refreshToken = RefreshToken.generate();
     const record = new RefreshToken({
-      userId,
-      familyId,
+      ...family,
       tokenHash: RefreshToken.hash(refreshToken),
-      expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
     });
     await this.refreshTokenGateway.create(record, trx);
 
     return {
-      accessToken: this.tokenService.generateToken({ sub: userId }),
+      accessToken: this.tokenService.generateToken({ sub: family.userId }),
       refreshToken,
       refreshTokenExpiresAt: record.expiresAt,
     };

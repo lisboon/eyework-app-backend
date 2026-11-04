@@ -90,6 +90,20 @@ describe('Refresh token and logout (integration)', () => {
     await refresh(second).expect(200);
   });
 
+  it('should keep the deadline set at login when it rotates the refresh token', async () => {
+    const signup = await http().post('/auth/signup').send(account).expect(201);
+    const deadline = /Expires=([^;]+)/.exec(refreshCookieOf(signup))?.[1];
+
+    const rotated = await refresh(tokenOf(signup)).expect(200);
+
+    expect(/Expires=([^;]+)/.exec(refreshCookieOf(rotated))?.[1]).toBe(
+      deadline,
+    );
+    const rows = await prisma.refreshToken.findMany();
+    expect(rows).toHaveLength(2);
+    expect(rows[1].expiresAt).toEqual(rows[0].expiresAt);
+  });
+
   it('should revoke the whole family when a rotated token is used again', async () => {
     const first = await signUp();
     const second = tokenOf(await refresh(first).expect(200));
