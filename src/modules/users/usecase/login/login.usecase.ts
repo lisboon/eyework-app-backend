@@ -1,7 +1,7 @@
 import { BadLoginError } from '@/modules/@shared/domain/errors/bad-login.error';
 import { User } from '../../domain/user.entity';
 import type { UserGateway } from '../../gateway/user.gateway';
-import type { AuthUserServiceInterface } from '../../service/auth.user.service';
+import type { PasswordServiceInterface } from '../../service/password.service';
 import type { SessionServiceInterface } from '../../service/session.service';
 import type {
   LoginInputDto,
@@ -12,10 +12,7 @@ import type {
 export class LoginUseCase implements LoginUseCaseInterface {
   constructor(
     private readonly userGateway: Pick<UserGateway, 'findByEmail'>,
-    private readonly authService: Pick<
-      AuthUserServiceInterface,
-      'comparePassword'
-    >,
+    private readonly passwordService: Pick<PasswordServiceInterface, 'compare'>,
     private readonly sessionService: Pick<SessionServiceInterface, 'start'>,
   ) {}
 
@@ -23,7 +20,7 @@ export class LoginUseCase implements LoginUseCaseInterface {
     const user = await this.userGateway.findByEmail(
       User.normalizeEmail(input.email),
     );
-    const passwordMatches = await this.authService.comparePassword(
+    const passwordMatches = await this.passwordService.compare(
       input.password,
       user?.password,
     );

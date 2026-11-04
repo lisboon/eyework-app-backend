@@ -3,8 +3,9 @@ import { PrismaTransactionManager } from '@/infra/database/prisma-transaction.ma
 import { UserFacade } from '../facade/user.facade';
 import { RefreshTokenRepository } from '../repository/refresh-token.repository';
 import { UserRepository } from '../repository/user.repository';
-import type { AuthUserServiceInterface } from '../service/auth.user.service';
+import { PasswordService } from '../service/password.service';
 import { SessionService } from '../service/session.service';
+import type { TokenServiceInterface } from '../service/token/token.service';
 import { FindMeUseCase } from '../usecase/find-me/find-me.usecase';
 import { LoginUseCase } from '../usecase/login/login.usecase';
 import { LogoutUseCase } from '../usecase/logout/logout.usecase';
@@ -14,15 +15,16 @@ import { SignUpUseCase } from '../usecase/signup/signup.usecase';
 export class UserFacadeFactory {
   static create(
     prisma: PrismaClient,
-    authUserService: AuthUserServiceInterface,
+    tokenService: TokenServiceInterface,
     refreshTokenTtlSeconds: number,
   ): UserFacade {
     const transactionManager = new PrismaTransactionManager(prisma);
     const userRepository = new UserRepository(prisma);
     const refreshTokenRepository = new RefreshTokenRepository(prisma);
+    const passwordService = new PasswordService();
     const sessionService = new SessionService(
       refreshTokenRepository,
-      authUserService,
+      tokenService,
       refreshTokenTtlSeconds,
     );
 
@@ -30,10 +32,10 @@ export class UserFacadeFactory {
       new SignUpUseCase(
         transactionManager,
         userRepository,
-        authUserService,
+        passwordService,
         sessionService,
       ),
-      new LoginUseCase(userRepository, authUserService, sessionService),
+      new LoginUseCase(userRepository, passwordService, sessionService),
       new FindMeUseCase(userRepository),
       new RefreshUseCase(
         transactionManager,

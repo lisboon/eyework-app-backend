@@ -1,7 +1,7 @@
 import type { TransactionContext } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { RefreshToken } from '../domain/refresh-token.entity';
 import type { RefreshTokenGateway } from '../gateway/refresh-token.gateway';
-import type { AuthUserServiceInterface } from './auth.user.service';
+import type { TokenServiceInterface } from './token/token.service';
 
 export interface Session {
   accessToken: string;
@@ -21,10 +21,7 @@ export interface SessionServiceInterface {
 export class SessionService implements SessionServiceInterface {
   constructor(
     private readonly refreshTokenGateway: Pick<RefreshTokenGateway, 'create'>,
-    private readonly authService: Pick<
-      AuthUserServiceInterface,
-      'generateToken'
-    >,
+    private readonly tokenService: Pick<TokenServiceInterface, 'generateToken'>,
     private readonly refreshTokenTtlSeconds: number,
   ) {}
 
@@ -54,7 +51,7 @@ export class SessionService implements SessionServiceInterface {
     await this.refreshTokenGateway.create(record, trx);
 
     return {
-      accessToken: this.authService.generateToken({ sub: userId }),
+      accessToken: this.tokenService.generateToken({ sub: userId }),
       refreshToken,
       refreshTokenExpiresAt: record.expiresAt,
     };

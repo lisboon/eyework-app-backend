@@ -26,23 +26,27 @@ describe('LoginUseCase', () => {
     const userGateway = {
       findByEmail: jest.fn().mockResolvedValue(user),
     };
-    const authService = {
-      comparePassword: jest.fn().mockResolvedValue(passwordMatches),
+    const passwordService = {
+      compare: jest.fn().mockResolvedValue(passwordMatches),
     };
     const sessionService = {
       start: jest.fn().mockResolvedValue(session),
     };
-    const useCase = new LoginUseCase(userGateway, authService, sessionService);
-    return { useCase, userGateway, authService, sessionService };
+    const useCase = new LoginUseCase(
+      userGateway,
+      passwordService,
+      sessionService,
+    );
+    return { useCase, userGateway, passwordService, sessionService };
   };
 
   it('should start a session when the password matches', async () => {
-    const { useCase, userGateway, authService, sessionService } =
+    const { useCase, userGateway, passwordService, sessionService } =
       makeSut(makeUser());
 
     await expect(useCase.execute(input)).resolves.toEqual(session);
     expect(userGateway.findByEmail).toHaveBeenCalledWith('ana@example.com');
-    expect(authService.comparePassword).toHaveBeenCalledWith(
+    expect(passwordService.compare).toHaveBeenCalledWith(
       'correct-horse-battery',
       'stored-hash',
     );
@@ -50,10 +54,10 @@ describe('LoginUseCase', () => {
   });
 
   it('should still compare the password when the email is not registered', async () => {
-    const { useCase, authService } = makeSut(null, false);
+    const { useCase, passwordService } = makeSut(null, false);
 
     await expect(useCase.execute(input)).rejects.toBeInstanceOf(BadLoginError);
-    expect(authService.comparePassword).toHaveBeenCalledWith(
+    expect(passwordService.compare).toHaveBeenCalledWith(
       'correct-horse-battery',
       undefined,
     );
@@ -67,7 +71,7 @@ describe('LoginUseCase', () => {
   ])(
     'should reject with the same error when %s',
     async (_, user, passwordMatches) => {
-      const { useCase, authService, sessionService } = makeSut(
+      const { useCase, passwordService, sessionService } = makeSut(
         user,
         passwordMatches,
       );
@@ -78,7 +82,7 @@ describe('LoginUseCase', () => {
       expect((error as BadLoginError).message).toBe(
         'Invalid email or password',
       );
-      expect(authService.comparePassword).toHaveBeenCalledTimes(1);
+      expect(passwordService.compare).toHaveBeenCalledTimes(1);
       expect(sessionService.start).not.toHaveBeenCalled();
     },
   );

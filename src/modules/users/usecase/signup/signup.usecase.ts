@@ -3,7 +3,7 @@ import type { TransactionManager } from '@/modules/@shared/domain/transaction/tr
 import { User } from '../../domain/user.entity';
 import { emailAlreadyRegisteredError } from '../../domain/user.errors';
 import type { UserGateway } from '../../gateway/user.gateway';
-import type { AuthUserServiceInterface } from '../../service/auth.user.service';
+import type { PasswordServiceInterface } from '../../service/password.service';
 import type { SessionServiceInterface } from '../../service/session.service';
 import type {
   SignUpInputDto,
@@ -15,10 +15,7 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
   constructor(
     private readonly transactionManager: TransactionManager,
     private readonly userGateway: Pick<UserGateway, 'findByEmail' | 'create'>,
-    private readonly authService: Pick<
-      AuthUserServiceInterface,
-      'hashPassword'
-    >,
+    private readonly passwordService: Pick<PasswordServiceInterface, 'hash'>,
     private readonly sessionService: Pick<SessionServiceInterface, 'start'>,
   ) {}
 
@@ -30,7 +27,7 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
     const user = User.create({
       name: input.name,
       email: input.email,
-      password: await this.authService.hashPassword(input.password),
+      password: await this.passwordService.hash(input.password),
     });
 
     if (user.notification.hasErrors()) {

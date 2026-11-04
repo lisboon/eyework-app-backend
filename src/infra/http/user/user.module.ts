@@ -3,7 +3,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from '@/infra/database/prisma.service';
 import { UserFacade } from '@/modules/users/facade/user.facade';
 import { UserFacadeFactory } from '@/modules/users/factory/user.facade.factory';
-import { AuthUserService } from '@/modules/users/service/auth.user.service';
+import { TokenService } from '@/modules/users/service/token/token.service';
 import { AUTH_CONFIG, type AuthConfig } from '../auth/auth.config';
 import { RATE_LIMITS } from '../auth/rate-limit.config';
 import { UserController } from './user.controller';
@@ -20,15 +20,15 @@ import { UserService } from './user.service';
       provide: UserFacade,
       useFactory: (
         prisma: PrismaService,
-        authUserService: AuthUserService,
+        tokenService: TokenService,
         config: AuthConfig,
       ) =>
         UserFacadeFactory.create(
           prisma,
-          authUserService,
+          tokenService,
           config.refreshTokenExpiresInSeconds,
         ),
-      inject: [PrismaService, AuthUserService, AUTH_CONFIG],
+      inject: [PrismaService, TokenService, AUTH_CONFIG],
     },
   ],
 })
