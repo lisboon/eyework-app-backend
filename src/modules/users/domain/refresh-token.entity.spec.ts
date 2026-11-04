@@ -55,4 +55,17 @@ describe('RefreshToken', () => {
   it('should be revoked once it has a revocation date', () => {
     expect(makeToken(new Date()).isRevoked()).toBe(true);
   });
+
+  it('should know when its family was revoked', () => {
+    const token = new RefreshToken({
+      userId: 'user-1',
+      tokenHash: 'hash',
+      expiresAt,
+      familyRevokedAt: new Date(),
+    });
+
+    expect(token.isFamilyRevoked()).toBe(true);
+    expect(token.isRevoked()).toBe(false);
+    expect(makeToken().isFamilyRevoked()).toBe(false);
+  });
 });

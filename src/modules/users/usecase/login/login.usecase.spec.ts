@@ -30,7 +30,7 @@ describe('LoginUseCase', () => {
       comparePassword: jest.fn().mockResolvedValue(passwordMatches),
     };
     const sessionService = {
-      issue: jest.fn().mockResolvedValue(session),
+      start: jest.fn().mockResolvedValue(session),
     };
     const useCase = new LoginUseCase(userGateway, authService, sessionService);
     return { useCase, userGateway, authService, sessionService };
@@ -46,7 +46,7 @@ describe('LoginUseCase', () => {
       'correct-horse-battery',
       'stored-hash',
     );
-    expect(sessionService.issue).toHaveBeenCalledWith('user-1');
+    expect(sessionService.start).toHaveBeenCalledWith('user-1');
   });
 
   it('should still compare the password when the email is not registered', async () => {
@@ -79,7 +79,7 @@ describe('LoginUseCase', () => {
         'Invalid email or password',
       );
       expect(authService.comparePassword).toHaveBeenCalledTimes(1);
-      expect(sessionService.issue).not.toHaveBeenCalled();
+      expect(sessionService.start).not.toHaveBeenCalled();
     },
   );
 });

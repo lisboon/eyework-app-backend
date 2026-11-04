@@ -1,4 +1,5 @@
 import { EntityValidationError } from '@/modules/@shared/domain/errors/unprocessable-entity.error';
+import type { TransactionManager } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { User } from '../../domain/user.entity';
 import { emailAlreadyRegisteredError } from '../../domain/user.errors';
 import type { UserGateway } from '../../gateway/user.gateway';
@@ -12,12 +13,13 @@ import type {
 
 export class SignUpUseCase implements SignUpUseCaseInterface {
   constructor(
+    private readonly transactionManager: TransactionManager,
     private readonly userGateway: Pick<UserGateway, 'findByEmail' | 'create'>,
     private readonly authService: Pick<
       AuthUserServiceInterface,
       'hashPassword'
     >,
-    private readonly sessionService: SessionServiceInterface,
+    private readonly sessionService: Pick<SessionServiceInterface, 'start'>,
   ) {}
 
   async execute(input: SignUpInputDto): Promise<SignUpOutputDto> {
@@ -35,13 +37,11 @@ export class SignUpUseCase implements SignUpUseCaseInterface {
       throw new EntityValidationError(user.notification.toJSON());
     }
 
-    await this.userGateway.create(user);
+    const session = await this.transactionManager.execute(async (trx) => {
+      await this.userGateway.create(user, trx);
+      return this.sessionService.start(user.id, trx);
+    });
 
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      ...(await this.sessionService.issue(user.id)),
-    };
+    return { id: user.id, name: user.name, email: user.email, ...session };
   }
 }

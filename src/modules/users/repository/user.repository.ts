@@ -3,6 +3,8 @@ import type {
   User as UserModel,
 } from '@/infra/database/generated/prisma/client';
 import { translateUniqueViolation } from '@/infra/database/prisma-errors';
+import { resolvePrismaClient } from '@/infra/database/prisma-transaction.context';
+import type { TransactionContext } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { User } from '../domain/user.entity';
 import { emailAlreadyRegisteredError } from '../domain/user.errors';
 import type { UserGateway } from '../gateway/user.gateway';
@@ -20,10 +22,11 @@ export class UserRepository implements UserGateway {
     return row ? this.toEntity(row) : null;
   }
 
-  async create(user: User): Promise<void> {
+  async create(user: User, trx?: TransactionContext): Promise<void> {
+    const client = resolvePrismaClient(this.prisma, trx);
     await translateUniqueViolation(
       () =>
-        this.prisma.user.create({
+        client.user.create({
           data: {
             id: user.id,
             name: user.name,

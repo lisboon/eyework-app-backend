@@ -47,7 +47,7 @@ describe('RefreshUseCase', () => {
       findById: jest.fn().mockResolvedValue(user),
     };
     const sessionService = {
-      issue: jest.fn().mockResolvedValue(session),
+      renew: jest.fn().mockResolvedValue(session),
     };
     const useCase = new RefreshUseCase(
       refreshTokenGateway,
@@ -75,13 +75,14 @@ describe('RefreshUseCase', () => {
     );
     expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1');
     expect(userGateway.findById).toHaveBeenCalledWith('user-1');
-    expect(sessionService.issue).toHaveBeenCalledWith('user-1', 'family-1');
+    expect(sessionService.renew).toHaveBeenCalledWith('user-1', 'family-1');
     expect(refreshTokenGateway.revokeFamily).not.toHaveBeenCalled();
   });
 
   it.each([
     ['is unknown', null],
     ['has expired', makeToken({ expiresAt: new Date(Date.now() - 1000) })],
+    ['belongs to a revoked family', makeToken({ familyRevokedAt: new Date() })],
   ])(
     'should reject a token that %s without touching the family',
     async (_, token) => {
@@ -90,7 +91,7 @@ describe('RefreshUseCase', () => {
       expectInvalidToken(await rejection(useCase));
       expect(refreshTokenGateway.revoke).not.toHaveBeenCalled();
       expect(refreshTokenGateway.revokeFamily).not.toHaveBeenCalled();
-      expect(sessionService.issue).not.toHaveBeenCalled();
+      expect(sessionService.renew).not.toHaveBeenCalled();
     },
   );
 
@@ -102,7 +103,7 @@ describe('RefreshUseCase', () => {
     expectInvalidToken(await rejection(useCase));
     expect(refreshTokenGateway.revoke).not.toHaveBeenCalled();
     expect(refreshTokenGateway.revokeFamily).toHaveBeenCalledWith('family-1');
-    expect(sessionService.issue).not.toHaveBeenCalled();
+    expect(sessionService.renew).not.toHaveBeenCalled();
   });
 
   it('should revoke the whole family when another request rotated the token first', async () => {
@@ -115,7 +116,7 @@ describe('RefreshUseCase', () => {
     expectInvalidToken(await rejection(useCase));
     expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1');
     expect(refreshTokenGateway.revokeFamily).toHaveBeenCalledWith('family-1');
-    expect(sessionService.issue).not.toHaveBeenCalled();
+    expect(sessionService.renew).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -126,6 +127,6 @@ describe('RefreshUseCase', () => {
     const { useCase, sessionService } = makeSut(makeToken(), user);
 
     expectInvalidToken(await rejection(useCase));
-    expect(sessionService.issue).not.toHaveBeenCalled();
+    expect(sessionService.renew).not.toHaveBeenCalled();
   });
 });

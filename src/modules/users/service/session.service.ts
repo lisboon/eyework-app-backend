@@ -1,3 +1,4 @@
+import type { TransactionContext } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { RefreshToken } from '../domain/refresh-token.entity';
 import type { RefreshTokenGateway } from '../gateway/refresh-token.gateway';
 import type { AuthUserServiceInterface } from './auth.user.service';
@@ -9,7 +10,8 @@ export interface Session {
 }
 
 export interface SessionServiceInterface {
-  issue(userId: string, familyId?: string): Promise<Session>;
+  start(userId: string, trx?: TransactionContext): Promise<Session>;
+  renew(userId: string, familyId: string): Promise<Session>;
 }
 
 export class SessionService implements SessionServiceInterface {
@@ -22,7 +24,18 @@ export class SessionService implements SessionServiceInterface {
     private readonly refreshTokenTtlSeconds: number,
   ) {}
 
-  async issue(userId: string, familyId?: string): Promise<Session> {
+  start(userId: string, trx?: TransactionContext): Promise<Session> {
+    return this.issue(userId, { trx });
+  }
+
+  renew(userId: string, familyId: string): Promise<Session> {
+    return this.issue(userId, { familyId });
+  }
+
+  private async issue(
+    userId: string,
+    { familyId, trx }: { familyId?: string; trx?: TransactionContext },
+  ): Promise<Session> {
     const refreshToken = RefreshToken.generate();
     const record = new RefreshToken({
       userId,
@@ -30,7 +43,7 @@ export class SessionService implements SessionServiceInterface {
       tokenHash: RefreshToken.hash(refreshToken),
       expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
     });
-    await this.refreshTokenGateway.create(record);
+    await this.refreshTokenGateway.create(record, trx);
 
     return {
       accessToken: this.authService.generateToken({ sub: userId }),

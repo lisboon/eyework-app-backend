@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@/infra/database/generated/prisma/client';
+import { PrismaTransactionManager } from '@/infra/database/prisma-transaction.manager';
 import { UserFacade } from '../facade/user.facade';
 import { RefreshTokenRepository } from '../repository/refresh-token.repository';
 import { UserRepository } from '../repository/user.repository';
@@ -16,6 +17,7 @@ export class UserFacadeFactory {
     authUserService: AuthUserServiceInterface,
     refreshTokenTtlSeconds: number,
   ): UserFacade {
+    const transactionManager = new PrismaTransactionManager(prisma);
     const userRepository = new UserRepository(prisma);
     const refreshTokenRepository = new RefreshTokenRepository(prisma);
     const sessionService = new SessionService(
@@ -25,7 +27,12 @@ export class UserFacadeFactory {
     );
 
     return new UserFacade(
-      new SignUpUseCase(userRepository, authUserService, sessionService),
+      new SignUpUseCase(
+        transactionManager,
+        userRepository,
+        authUserService,
+        sessionService,
+      ),
       new LoginUseCase(userRepository, authUserService, sessionService),
       new FindMeUseCase(userRepository),
       new RefreshUseCase(

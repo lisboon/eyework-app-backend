@@ -8,6 +8,7 @@ export interface RefreshTokenProps {
   tokenHash: string;
   expiresAt: Date;
   revokedAt?: Date;
+  familyRevokedAt?: Date;
   createdAt?: Date;
 }
 
@@ -18,6 +19,7 @@ export class RefreshToken {
   private readonly _tokenHash: string;
   private readonly _expiresAt: Date;
   private readonly _revokedAt: Date | undefined;
+  private readonly _familyRevokedAt: Date | undefined;
   private readonly _createdAt: Date;
 
   constructor(props: RefreshTokenProps) {
@@ -27,6 +29,7 @@ export class RefreshToken {
     this._tokenHash = props.tokenHash;
     this._expiresAt = props.expiresAt;
     this._revokedAt = props.revokedAt;
+    this._familyRevokedAt = props.familyRevokedAt;
     this._createdAt = props.createdAt ?? new Date();
   }
 
@@ -44,6 +47,10 @@ export class RefreshToken {
 
   isRevoked(): boolean {
     return this._revokedAt !== undefined;
+  }
+
+  isFamilyRevoked(): boolean {
+    return this._familyRevokedAt !== undefined;
   }
 
   get id(): string {

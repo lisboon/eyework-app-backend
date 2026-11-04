@@ -18,14 +18,18 @@ export class RefreshUseCase implements RefreshUseCaseInterface {
       'findByTokenHash' | 'revoke' | 'revokeFamily'
     >,
     private readonly userGateway: Pick<UserGateway, 'findById'>,
-    private readonly sessionService: SessionServiceInterface,
+    private readonly sessionService: Pick<SessionServiceInterface, 'renew'>,
   ) {}
 
   async execute(input: RefreshInputDto): Promise<RefreshOutputDto> {
     const current = await this.refreshTokenGateway.findByTokenHash(
       RefreshToken.hash(input.refreshToken),
     );
-    if (!current || current.isExpired(new Date())) {
+    if (
+      !current ||
+      current.isExpired(new Date()) ||
+      current.isFamilyRevoked()
+    ) {
       throw new UnauthorizedError(INVALID_REFRESH_TOKEN);
     }
 
@@ -42,6 +46,6 @@ export class RefreshUseCase implements RefreshUseCaseInterface {
       throw new UnauthorizedError(INVALID_REFRESH_TOKEN);
     }
 
-    return this.sessionService.issue(user.id, current.familyId);
+    return this.sessionService.renew(user.id, current.familyId);
   }
 }

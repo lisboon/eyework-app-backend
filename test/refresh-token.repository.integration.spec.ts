@@ -18,6 +18,9 @@ describe('RefreshTokenRepository (integration)', () => {
       expiresAt: new Date('2026-12-03T00:00:00.000Z'),
     });
 
+  const reload = (token: RefreshToken) =>
+    repository.findByTokenHash(token.tokenHash);
+
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
@@ -38,11 +41,11 @@ describe('RefreshTokenRepository (integration)', () => {
     await prisma.$disconnect();
   });
 
-  it('should persist a token and find it by its hash', async () => {
+  it('should persist a token with its new family and find it by its hash', async () => {
     const token = makeToken();
 
     await repository.create(token);
-    const found = await repository.findByTokenHash(token.tokenHash);
+    const found = await reload(token);
 
     expect(found).toBeInstanceOf(RefreshToken);
     expect(found?.id).toBe(token.id);
@@ -51,6 +54,20 @@ describe('RefreshTokenRepository (integration)', () => {
     expect(found?.expiresAt).toEqual(token.expiresAt);
     expect(found?.createdAt).toEqual(token.createdAt);
     expect(found?.isRevoked()).toBe(false);
+    expect(found?.isFamilyRevoked()).toBe(false);
+    await expect(prisma.refreshTokenFamily.count()).resolves.toBe(1);
+  });
+
+  it('should add the next token to the existing family', async () => {
+    const first = makeToken();
+    await repository.create(first);
+
+    await repository.create(makeToken(first.familyId));
+
+    await expect(prisma.refreshTokenFamily.count()).resolves.toBe(1);
+    await expect(
+      prisma.refreshToken.count({ where: { familyId: first.familyId } }),
+    ).resolves.toBe(2);
   });
 
   it('should return null for an unknown hash', async () => {
@@ -65,33 +82,38 @@ describe('RefreshTokenRepository (integration)', () => {
 
     await expect(repository.revoke(token.id)).resolves.toBe(true);
     await expect(repository.revoke(token.id)).resolves.toBe(false);
-    const found = await repository.findByTokenHash(token.tokenHash);
-    expect(found?.isRevoked()).toBe(true);
+    expect((await reload(token))?.isRevoked()).toBe(true);
   });
 
-  it('should revoke every token of a family and nothing else', async () => {
+  it('should revoke the family of a token and leave the other families alone', async () => {
     const first = makeToken();
-    const second = makeToken(first.familyId);
     const otherFamily = makeToken();
-    for (const token of [first, second, otherFamily]) {
-      await repository.create(token);
-    }
+    await repository.create(first);
+    await repository.create(otherFamily);
 
     await repository.revokeFamily(first.familyId);
 
-    const revoked = await Promise.all(
-      [first, second, otherFamily].map(async (token) =>
-        (await repository.findByTokenHash(token.tokenHash))?.isRevoked(),
-      ),
-    );
-    expect(revoked).toEqual([true, true, false]);
+    expect((await reload(first))?.isFamilyRevoked()).toBe(true);
+    expect((await reload(otherFamily))?.isFamilyRevoked()).toBe(false);
   });
 
-  it('should delete the tokens together with the account', async () => {
+  it('should keep a family revoked for a token stored after the revocation', async () => {
+    const first = makeToken();
+    await repository.create(first);
+    await repository.revokeFamily(first.familyId);
+
+    const late = makeToken(first.familyId);
+    await repository.create(late);
+
+    expect((await reload(late))?.isFamilyRevoked()).toBe(true);
+  });
+
+  it('should delete the families and tokens together with the account', async () => {
     await repository.create(makeToken());
 
     await prisma.user.delete({ where: { id: user.id } });
 
+    await expect(prisma.refreshTokenFamily.count()).resolves.toBe(0);
     await expect(prisma.refreshToken.count()).resolves.toBe(0);
   });
 });

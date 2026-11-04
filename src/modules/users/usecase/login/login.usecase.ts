@@ -16,7 +16,7 @@ export class LoginUseCase implements LoginUseCaseInterface {
       AuthUserServiceInterface,
       'comparePassword'
     >,
-    private readonly sessionService: SessionServiceInterface,
+    private readonly sessionService: Pick<SessionServiceInterface, 'start'>,
   ) {}
 
   async execute(input: LoginInputDto): Promise<LoginOutputDto> {
@@ -31,6 +31,6 @@ export class LoginUseCase implements LoginUseCaseInterface {
       throw new BadLoginError();
     }
 
-    return this.sessionService.issue(user.id);
+    return this.sessionService.start(user.id);
   }
 }

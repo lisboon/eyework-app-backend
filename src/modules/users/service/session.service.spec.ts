@@ -1,3 +1,4 @@
+import { TransactionContext } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { RefreshToken } from '../domain/refresh-token.entity';
 import { SessionService } from './session.service';
 
@@ -13,6 +14,9 @@ describe('SessionService', () => {
     return { service, refreshTokenGateway, authService };
   };
 
+  const storedToken = (gateway: { create: jest.Mock }): RefreshToken =>
+    gateway.create.mock.calls[0][0];
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -23,9 +27,9 @@ describe('SessionService', () => {
       .mockReturnValue(new Date('2026-11-03T12:00:00.000Z').getTime());
     const { service, refreshTokenGateway, authService } = makeSut();
 
-    const session = await service.issue('user-1');
+    const session = await service.start('user-1');
 
-    const stored: RefreshToken = refreshTokenGateway.create.mock.calls[0][0];
+    const stored = storedToken(refreshTokenGateway);
     expect(stored.userId).toBe('user-1');
     expect(stored.tokenHash).toBe(RefreshToken.hash(session.refreshToken));
     expect(stored.tokenHash).not.toBe(session.refreshToken);
@@ -38,12 +42,28 @@ describe('SessionService', () => {
     });
   });
 
-  it('should keep the family when it replaces a token', async () => {
+  it('should open a new family on every start and store it in the given transaction', async () => {
+    const { service, refreshTokenGateway } = makeSut();
+    const trx = new (class extends TransactionContext {
+      constructor() {
+        super();
+      }
+    })();
+
+    await service.start('user-1', trx);
+    await service.start('user-1');
+
+    const [first, second] = refreshTokenGateway.create.mock.calls;
+    expect(first[1]).toBe(trx);
+    expect(second[1]).toBeUndefined();
+    expect(first[0].familyId).not.toBe(second[0].familyId);
+  });
+
+  it('should keep the family when it renews a session', async () => {
     const { service, refreshTokenGateway } = makeSut();
 
-    await service.issue('user-1', 'family-1');
+    await service.renew('user-1', 'family-1');
 
-    const stored: RefreshToken = refreshTokenGateway.create.mock.calls[0][0];
-    expect(stored.familyId).toBe('family-1');
+    expect(storedToken(refreshTokenGateway).familyId).toBe('family-1');
   });
 });

@@ -10,26 +10,32 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(uuid(7))
-  name          String         @db.VarChar(120)
-  email         String         @unique @db.VarChar(254)
-  password      String         @db.VarChar(60)
-  active        Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
-  refreshTokens RefreshToken[]
+  id                   String               @id @default(uuid(7))
+  name                 String               @db.VarChar(120)
+  email                String               @unique @db.VarChar(254)
+  password             String               @db.VarChar(60)
+  active               Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
+  refreshTokenFamilies RefreshTokenFamily[]
+}
+
+model RefreshTokenFamily {
+  id        String         @id @default(uuid(7))
+  userId    String
+  revokedAt DateTime?
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens    RefreshToken[]
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid(7))
-  userId    String
+  id        String             @id @default(uuid(7))
   familyId  String
-  tokenHash String    @unique @db.Char(64)
+  tokenHash String             @unique @db.Char(64)
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([familyId])
+  createdAt DateTime           @default(now())
+  family    RefreshTokenFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
