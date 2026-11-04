@@ -1,5 +1,6 @@
 import { PrismaService } from '@/infra/database/prisma.service';
 import { PrismaTransactionManager } from '@/infra/database/prisma-transaction.manager';
+import type { TransactionContext } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import type { RefreshToken } from '@/modules/users/domain/refresh-token.entity';
 import { User } from '@/modules/users/domain/user.entity';
 import { RefreshTokenRepository } from '@/modules/users/repository/refresh-token.repository';
@@ -12,6 +13,7 @@ import { resetDatabase } from './setup/database';
 
 describe('Session consistency (integration)', () => {
   let prisma: PrismaService;
+  let transactions: PrismaTransactionManager;
   let tokens: RefreshTokenRepository;
   let users: UserRepository;
   let sessions: SessionService;
@@ -19,7 +21,9 @@ describe('Session consistency (integration)', () => {
 
   const authService = { generateToken: () => 'access-token' };
   const refreshWith = (sessionService: SessionService) =>
-    new RefreshUseCase(tokens, users, sessionService);
+    new RefreshUseCase(transactions, tokens, users, sessionService);
+  const refresh = (refreshToken: string) =>
+    refreshWith(sessions).execute({ refreshToken });
 
   const pausedBeforeInsert = () => {
     let reachInsert!: () => void;
@@ -27,10 +31,10 @@ describe('Session consistency (integration)', () => {
     const reached = new Promise<void>((resolve) => (reachInsert = resolve));
     const released = new Promise<void>((resolve) => (release = resolve));
     const gateway = {
-      create: async (token: RefreshToken) => {
+      create: async (token: RefreshToken, trx?: TransactionContext) => {
         reachInsert();
         await released;
-        await tokens.create(token);
+        await tokens.create(token, trx);
       },
     };
     return {
@@ -40,9 +44,20 @@ describe('Session consistency (integration)', () => {
     };
   };
 
+  const failingSessions = new SessionService(
+    {
+      create: async () => {
+        throw new Error('session storage failed');
+      },
+    },
+    authService,
+    3600,
+  );
+
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
+    transactions = new PrismaTransactionManager(prisma);
     tokens = new RefreshTokenRepository(prisma);
     users = new UserRepository(prisma);
     sessions = new SessionService(tokens, authService, 3600);
@@ -62,61 +77,68 @@ describe('Session consistency (integration)', () => {
     await prisma.$disconnect();
   });
 
-  describe('a revocation while a refresh is storing the next token', () => {
+  describe('refresh token rotation', () => {
     it('should let only one of two simultaneous refreshes win and leave its token unable to renew', async () => {
       const { refreshToken } = await sessions.start(user.id);
 
       const results = await Promise.allSettled([
-        refreshWith(sessions).execute({ refreshToken }),
-        refreshWith(sessions).execute({ refreshToken }),
+        refresh(refreshToken),
+        refresh(refreshToken),
       ]);
 
       const winners = results.filter((result) => result.status === 'fulfilled');
       expect(winners).toHaveLength(1);
-      await expect(
-        refreshWith(sessions).execute({
-          refreshToken: winners[0].value.refreshToken,
-        }),
-      ).rejects.toThrow('Invalid refresh token');
+      await expect(refresh(winners[0].value.refreshToken)).rejects.toThrow(
+        'Invalid refresh token',
+      );
     });
-    it.each([
-      [
-        'logout',
-        (token: string) =>
-          new LogoutUseCase(tokens).execute({ refreshToken: token }),
-      ],
-      [
-        'reuse of the same token',
-        (token: string) =>
-          expect(
-            refreshWith(sessions).execute({ refreshToken: token }),
-          ).rejects.toThrow('Invalid refresh token'),
-      ],
-    ])(
-      'should leave the next token unable to renew after a %s',
-      async (_, revoke: (token: string) => Promise<unknown>) => {
-        const { refreshToken } = await sessions.start(user.id);
-        const otherDevice = await sessions.start(user.id);
-        const paused = pausedBeforeInsert();
 
-        const rotation = refreshWith(paused.sessions).execute({ refreshToken });
-        await paused.reached;
-        await revoke(refreshToken);
-        paused.release();
-        const next = await rotation;
+    it('should leave the next token unable to renew when a logout runs while it is stored', async () => {
+      const { refreshToken } = await sessions.start(user.id);
+      const otherDevice = await sessions.start(user.id);
+      const paused = pausedBeforeInsert();
 
-        await expect(
-          refreshWith(sessions).execute({ refreshToken: next.refreshToken }),
-        ).rejects.toThrow('Invalid refresh token');
-        await expect(
-          refreshWith(sessions).execute({
-            refreshToken: otherDevice.refreshToken,
-          }),
-        ).resolves.toEqual(
-          expect.objectContaining({ accessToken: 'access-token' }),
-        );
-      },
-    );
+      const rotation = refreshWith(paused.sessions).execute({ refreshToken });
+      await paused.reached;
+      await new LogoutUseCase(tokens).execute({ refreshToken });
+      paused.release();
+      const next = await rotation;
+
+      await expect(refresh(next.refreshToken)).rejects.toThrow(
+        'Invalid refresh token',
+      );
+      await expect(refresh(otherDevice.refreshToken)).resolves.toEqual(
+        expect.objectContaining({ accessToken: 'access-token' }),
+      );
+    });
+
+    it('should make a reuse that arrives during the rotation wait for it and revoke the family', async () => {
+      const { refreshToken } = await sessions.start(user.id);
+      const paused = pausedBeforeInsert();
+
+      const rotation = refreshWith(paused.sessions).execute({ refreshToken });
+      await paused.reached;
+      const reuse = refresh(refreshToken);
+      paused.release();
+      const next = await rotation;
+
+      await expect(reuse).rejects.toThrow('Invalid refresh token');
+      await expect(refresh(next.refreshToken)).rejects.toThrow(
+        'Invalid refresh token',
+      );
+    });
+
+    it('should keep the token usable when the next one cannot be stored', async () => {
+      const { refreshToken } = await sessions.start(user.id);
+
+      await expect(
+        refreshWith(failingSessions).execute({ refreshToken }),
+      ).rejects.toThrow('session storage failed');
+
+      await expect(refresh(refreshToken)).resolves.toEqual(
+        expect.objectContaining({ accessToken: 'access-token' }),
+      );
+    });
   });
 
   describe('signup', () => {
@@ -128,17 +150,8 @@ describe('Session consistency (integration)', () => {
     const hasher = { hashPassword: async () => 'hashed-password' };
 
     it('should not keep the account when the first session cannot be stored', async () => {
-      const failingSessions = new SessionService(
-        {
-          create: async () => {
-            throw new Error('session storage failed');
-          },
-        },
-        authService,
-        3600,
-      );
       const signUp = new SignUpUseCase(
-        new PrismaTransactionManager(prisma),
+        transactions,
         users,
         hasher,
         failingSessions,
@@ -151,21 +164,14 @@ describe('Session consistency (integration)', () => {
     });
 
     it('should store the account and its first session together', async () => {
-      const signUp = new SignUpUseCase(
-        new PrismaTransactionManager(prisma),
-        users,
-        hasher,
-        sessions,
-      );
+      const signUp = new SignUpUseCase(transactions, users, hasher, sessions);
 
       const output = await signUp.execute(input);
 
       await expect(
         prisma.refreshTokenFamily.count({ where: { userId: output.id } }),
       ).resolves.toBe(1);
-      await expect(
-        refreshWith(sessions).execute({ refreshToken: output.refreshToken }),
-      ).resolves.toEqual(
+      await expect(refresh(output.refreshToken)).resolves.toEqual(
         expect.objectContaining({ accessToken: 'access-token' }),
       );
     });

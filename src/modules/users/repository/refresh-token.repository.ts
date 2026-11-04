@@ -43,8 +43,11 @@ export class RefreshTokenRepository implements RefreshTokenGateway {
     return row ? this.toEntity(row) : null;
   }
 
-  async revoke(id: string): Promise<boolean> {
-    const { count } = await this.prisma.refreshToken.updateMany({
+  async revoke(id: string, trx?: TransactionContext): Promise<boolean> {
+    const { count } = await resolvePrismaClient(
+      this.prisma,
+      trx,
+    ).refreshToken.updateMany({
       where: { id, revokedAt: null },
       data: { revokedAt: new Date() },
     });

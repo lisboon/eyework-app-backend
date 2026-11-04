@@ -59,11 +59,17 @@ describe('SessionService', () => {
     expect(first[0].familyId).not.toBe(second[0].familyId);
   });
 
-  it('should keep the family when it renews a session', async () => {
+  it('should keep the family when it renews a session, inside the given transaction', async () => {
     const { service, refreshTokenGateway } = makeSut();
+    const trx = new (class extends TransactionContext {
+      constructor() {
+        super();
+      }
+    })();
 
-    await service.renew('user-1', 'family-1');
+    await service.renew('user-1', 'family-1', trx);
 
     expect(storedToken(refreshTokenGateway).familyId).toBe('family-1');
+    expect(refreshTokenGateway.create.mock.calls[0][1]).toBe(trx);
   });
 });
