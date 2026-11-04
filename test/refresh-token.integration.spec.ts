@@ -173,6 +173,61 @@ describe('Refresh token and logout (integration)', () => {
     await http().post('/auth/logout').expect(204);
   });
 
+  describe('Origin check', () => {
+    const credentials = { email: account.email, password: account.password };
+
+    it('should let the configured origin log in', async () => {
+      await signUp();
+
+      const response = await http()
+        .post('/auth/login')
+        .set('Origin', 'http://localhost:3000')
+        .send(credentials);
+
+      expect(response.status).toBe(200);
+      expect(refreshCookieOf(response)).not.toBe('');
+    });
+
+    it('should refuse a login from another site without setting a cookie', async () => {
+      await signUp();
+
+      const response = await http()
+        .post('/auth/login')
+        .set('Origin', 'https://evil.example')
+        .send(credentials);
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Origin not allowed',
+      });
+      expect(refreshCookieOf(response)).toBe('');
+    });
+
+    it('should refuse a logout from a sibling subdomain and keep the session', async () => {
+      const token = await signUp();
+
+      await withCookie('/auth/logout', token)
+        .set('Origin', 'http://evil.localhost:3000')
+        .expect(403);
+
+      await refresh(token).expect(200);
+    });
+
+    it('should ignore a form-encoded login body', async () => {
+      await signUp();
+
+      const response = await http()
+        .post('/auth/login')
+        .type('form')
+        .send(credentials);
+
+      expect(response.status).toBe(422);
+      expect(refreshCookieOf(response)).toBe('');
+    });
+  });
+
   describe('CORS', () => {
     const preflight = (origin: string) =>
       http()

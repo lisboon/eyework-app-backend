@@ -1,10 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
-import type { NestExpressApplication } from '@nestjs/platform-express';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { PrismaService } from '@/infra/database/prisma.service';
-import { AppModule } from '@/infra/http/app.module';
-import { configureApp } from '@/infra/http/app.setup';
+import { createTestApp } from './setup/app';
 
 describe('Health with an unreachable database (integration)', () => {
   let app: INestApplication;
@@ -21,17 +18,9 @@ describe('Health with an unreachable database (integration)', () => {
   };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue(unreachablePrisma())
-      .compile();
-
-    app = configureApp(
-      moduleRef.createNestApplication<NestExpressApplication>(),
+    app = await createTestApp((builder) =>
+      builder.overrideProvider(PrismaService).useValue(unreachablePrisma()),
     );
-    await app.init();
   });
 
   afterAll(async () => {
