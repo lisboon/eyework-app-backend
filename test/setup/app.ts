@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
+import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import { AppModule } from '@/infra/http/app.module';
 import { APP_OPTIONS, configureApp } from '@/infra/http/app.setup';
 
@@ -18,4 +19,8 @@ export async function createTestApp(
   );
   await app.init();
   return app;
+}
+
+export function resetRateLimits(app: INestApplication): void {
+  app.get<ThrottlerStorageService>(ThrottlerStorage).onApplicationShutdown();
 }

@@ -10,11 +10,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import type { FindMeOutputDto } from '@/modules/users/usecase/find-me/find-me.usecase.dto';
 import { LoginInput } from '@/modules/users/usecase/login/login.usecase.dto';
 import { SignUpInput } from '@/modules/users/usecase/signup/signup.usecase.dto';
 import { AuthGuard, type AuthenticatedUser } from '../auth/auth-guard';
+import { REFRESH_RATE_LIMIT } from '../auth/rate-limit.config';
+import { RateLimitGuard } from '../auth/rate-limit.guard';
 import {
   clearRefreshTokenCookie,
   readRefreshTokenCookie,
@@ -28,6 +31,8 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post('auth/signup')
+  @UseGuards(RateLimitGuard)
+  @SkipThrottle({ email: true })
   async signUp(
     @Body() body: SignUpInput,
     @Res({ passthrough: true }) res: Response,
@@ -38,6 +43,7 @@ export class UserController {
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
   async login(
     @Body() body: LoginInput,
     @Res({ passthrough: true }) res: Response,
@@ -47,6 +53,9 @@ export class UserController {
 
   @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @Throttle(REFRESH_RATE_LIMIT)
+  @SkipThrottle({ email: true })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
