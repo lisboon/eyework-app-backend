@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import request, { type Response } from 'supertest';
 import { PrismaService } from '@/infra/database/prisma.service';
-import { createTestApp } from './setup/app';
+import { createTestApp, resetRateLimits } from './setup/app';
 import { resetDatabase } from './setup/database';
 
 describe('Refresh token and logout (integration)', () => {
@@ -37,6 +37,7 @@ describe('Refresh token and logout (integration)', () => {
 
   beforeEach(async () => {
     await resetDatabase(prisma);
+    resetRateLimits(app);
   });
 
   afterAll(async () => {

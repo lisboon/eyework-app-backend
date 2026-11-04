@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { AuthUserService } from './auth.user.service';
 
 describe('AuthUserService', () => {
@@ -46,15 +46,17 @@ describe('AuthUserService', () => {
     );
   });
 
-  it('should not accept a longer password that starts with the stored one', async () => {
+  it('should not accept a longer password that starts with the stored one, and still run bcrypt once', async () => {
     const { service } = makeSut();
     const password = 'a'.repeat(72);
     const hash = await service.hashPassword(password);
-
     await expect(service.comparePassword(password, hash)).resolves.toBe(true);
+    const compare = jest.spyOn(bcrypt, 'compare');
+
     await expect(
       service.comparePassword(`${password}-extra`, hash),
     ).resolves.toBe(false);
+    expect(compare).toHaveBeenCalledTimes(1);
   });
 
   it('should still run bcrypt with the same cost and return false when there is no stored hash', async () => {
@@ -66,7 +68,7 @@ describe('AuthUserService', () => {
       service.comparePassword('correct-horse-battery', undefined),
     ).resolves.toBe(false);
     expect(compare).toHaveBeenCalledTimes(1);
-    expect(bcrypt.getRounds(compare.mock.calls[0][1])).toBe(
+    expect(bcrypt.getRounds(compare.mock.calls[0][1] as string)).toBe(
       bcrypt.getRounds(storedHash),
     );
   });

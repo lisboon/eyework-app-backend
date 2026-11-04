@@ -1,8 +1,13 @@
 import { UnauthorizedError } from '@/modules/@shared/domain/errors/unauthorized.error';
 import {
+  TransactionContext,
+  type TransactionManager,
+} from '@/modules/@shared/domain/transaction/transaction-manager.interface';
+import {
   RefreshToken,
   type RefreshTokenProps,
 } from '../../domain/refresh-token.entity';
+import { RefreshTokenReuseError } from '../../domain/refresh-token-reuse.error';
 import { User, type UserProps } from '../../domain/user.entity';
 import { RefreshUseCase } from './refresh.usecase';
 
@@ -13,6 +18,11 @@ describe('RefreshUseCase', () => {
     refreshToken: 'next-refresh-token',
     refreshTokenExpiresAt: new Date('2026-12-03T00:00:00.000Z'),
   };
+  const trx = new (class extends TransactionContext {
+    constructor() {
+      super();
+    }
+  })();
 
   const makeToken = (overrides: Partial<RefreshTokenProps> = {}) =>
     new RefreshToken({
@@ -38,6 +48,12 @@ describe('RefreshUseCase', () => {
     user: User | null = makeUser(),
     claimed = true,
   ) => {
+    const transactionManager = {
+      execute: jest.fn(
+        async (work: (context: TransactionContext) => Promise<unknown>) =>
+          work(trx),
+      ),
+    };
     const refreshTokenGateway = {
       findByTokenHash: jest.fn().mockResolvedValue(token),
       revoke: jest.fn().mockResolvedValue(claimed),
@@ -50,11 +66,18 @@ describe('RefreshUseCase', () => {
       renew: jest.fn().mockResolvedValue(session),
     };
     const useCase = new RefreshUseCase(
+      transactionManager as unknown as TransactionManager,
       refreshTokenGateway,
       userGateway,
       sessionService,
     );
-    return { useCase, refreshTokenGateway, userGateway, sessionService };
+    return {
+      useCase,
+      transactionManager,
+      refreshTokenGateway,
+      userGateway,
+      sessionService,
+    };
   };
 
   const rejection = (useCase: RefreshUseCase) =>
@@ -65,17 +88,33 @@ describe('RefreshUseCase', () => {
     expect((error as UnauthorizedError).message).toBe('Invalid refresh token');
   };
 
-  it('should revoke the token used and issue the next one in the same family', async () => {
-    const { useCase, refreshTokenGateway, userGateway, sessionService } =
-      makeSut();
+  const expectReuse = (error: unknown) => {
+    expectInvalidToken(error);
+    expect(error).toBeInstanceOf(RefreshTokenReuseError);
+    expect(error).toMatchObject({ userId: 'user-1', familyId: 'family-1' });
+  };
+
+  it('should revoke the token used and store the next one of the family in one transaction', async () => {
+    const {
+      useCase,
+      transactionManager,
+      refreshTokenGateway,
+      userGateway,
+      sessionService,
+    } = makeSut();
 
     await expect(useCase.execute(input)).resolves.toEqual(session);
     expect(refreshTokenGateway.findByTokenHash).toHaveBeenCalledWith(
       RefreshToken.hash('refresh-token'),
     );
-    expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1');
     expect(userGateway.findById).toHaveBeenCalledWith('user-1');
-    expect(sessionService.renew).toHaveBeenCalledWith('user-1', 'family-1');
+    expect(transactionManager.execute).toHaveBeenCalledTimes(1);
+    expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1', trx);
+    expect(sessionService.renew).toHaveBeenCalledWith(
+      'user-1',
+      'family-1',
+      trx,
+    );
     expect(refreshTokenGateway.revokeFamily).not.toHaveBeenCalled();
   });
 
@@ -86,24 +125,23 @@ describe('RefreshUseCase', () => {
   ])(
     'should reject a token that %s without touching the family',
     async (_, token) => {
-      const { useCase, refreshTokenGateway, sessionService } = makeSut(token);
+      const { useCase, transactionManager, refreshTokenGateway } =
+        makeSut(token);
 
       expectInvalidToken(await rejection(useCase));
-      expect(refreshTokenGateway.revoke).not.toHaveBeenCalled();
+      expect(transactionManager.execute).not.toHaveBeenCalled();
       expect(refreshTokenGateway.revokeFamily).not.toHaveBeenCalled();
-      expect(sessionService.renew).not.toHaveBeenCalled();
     },
   );
 
   it('should revoke the whole family when a revoked token comes back', async () => {
-    const { useCase, refreshTokenGateway, sessionService } = makeSut(
+    const { useCase, transactionManager, refreshTokenGateway } = makeSut(
       makeToken({ revokedAt: new Date() }),
     );
 
-    expectInvalidToken(await rejection(useCase));
-    expect(refreshTokenGateway.revoke).not.toHaveBeenCalled();
+    expectReuse(await rejection(useCase));
+    expect(transactionManager.execute).not.toHaveBeenCalled();
     expect(refreshTokenGateway.revokeFamily).toHaveBeenCalledWith('family-1');
-    expect(sessionService.renew).not.toHaveBeenCalled();
   });
 
   it('should revoke the whole family when another request rotated the token first', async () => {
@@ -113,8 +151,8 @@ describe('RefreshUseCase', () => {
       false,
     );
 
-    expectInvalidToken(await rejection(useCase));
-    expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1');
+    expectReuse(await rejection(useCase));
+    expect(refreshTokenGateway.revoke).toHaveBeenCalledWith('token-1', trx);
     expect(refreshTokenGateway.revokeFamily).toHaveBeenCalledWith('family-1');
     expect(sessionService.renew).not.toHaveBeenCalled();
   });
@@ -124,9 +162,16 @@ describe('RefreshUseCase', () => {
     ['is inactive', makeUser({ active: false })],
     ['was deleted', makeUser({ deletedAt: new Date() })],
   ])('should reject when the account %s', async (_, user) => {
-    const { useCase, sessionService } = makeSut(makeToken(), user);
+    const { useCase, transactionManager, sessionService } = makeSut(
+      makeToken(),
+      user,
+    );
 
-    expectInvalidToken(await rejection(useCase));
+    const error = await rejection(useCase);
+
+    expectInvalidToken(error);
+    expect(error).not.toBeInstanceOf(RefreshTokenReuseError);
+    expect(transactionManager.execute).not.toHaveBeenCalled();
     expect(sessionService.renew).not.toHaveBeenCalled();
   });
 });

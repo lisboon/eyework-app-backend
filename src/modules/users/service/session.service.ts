@@ -11,7 +11,11 @@ export interface Session {
 
 export interface SessionServiceInterface {
   start(userId: string, trx?: TransactionContext): Promise<Session>;
-  renew(userId: string, familyId: string): Promise<Session>;
+  renew(
+    userId: string,
+    familyId: string,
+    trx?: TransactionContext,
+  ): Promise<Session>;
 }
 
 export class SessionService implements SessionServiceInterface {
@@ -28,8 +32,12 @@ export class SessionService implements SessionServiceInterface {
     return this.issue(userId, { trx });
   }
 
-  renew(userId: string, familyId: string): Promise<Session> {
-    return this.issue(userId, { familyId });
+  renew(
+    userId: string,
+    familyId: string,
+    trx?: TransactionContext,
+  ): Promise<Session> {
+    return this.issue(userId, { familyId, trx });
   }
 
   private async issue(

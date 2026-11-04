@@ -4,6 +4,6 @@ import type { RefreshToken } from '../domain/refresh-token.entity';
 export interface RefreshTokenGateway {
   create(token: RefreshToken, trx?: TransactionContext): Promise<void>;
   findByTokenHash(tokenHash: string): Promise<RefreshToken | null>;
-  revoke(id: string): Promise<boolean>;
+  revoke(id: string, trx?: TransactionContext): Promise<boolean>;
   revokeFamily(familyId: string): Promise<void>;
 }

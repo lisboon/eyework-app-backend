@@ -1,9 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { version } from 'uuid';
 import { PrismaService } from '@/infra/database/prisma.service';
-import { createTestApp } from './setup/app';
+import { createTestApp, resetRateLimits } from './setup/app';
 import { resetDatabase } from './setup/database';
 
 describe('POST /auth/signup (integration)', () => {
@@ -26,6 +26,7 @@ describe('POST /auth/signup (integration)', () => {
 
   beforeEach(async () => {
     await resetDatabase(prisma);
+    resetRateLimits(app);
   });
 
   afterAll(async () => {

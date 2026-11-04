@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { sign } from 'jsonwebtoken';
 import request from 'supertest';
 import { PrismaService } from '@/infra/database/prisma.service';
-import { createTestApp } from './setup/app';
+import { createTestApp, resetRateLimits } from './setup/app';
 import { resetDatabase } from './setup/database';
 
 describe('Login and current user (integration)', () => {
@@ -30,6 +30,7 @@ describe('Login and current user (integration)', () => {
 
   beforeEach(async () => {
     await resetDatabase(prisma);
+    resetRateLimits(app);
   });
 
   afterAll(async () => {

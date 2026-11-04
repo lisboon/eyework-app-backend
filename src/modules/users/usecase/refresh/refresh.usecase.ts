@@ -1,5 +1,7 @@
 import { UnauthorizedError } from '@/modules/@shared/domain/errors/unauthorized.error';
+import type { TransactionManager } from '@/modules/@shared/domain/transaction/transaction-manager.interface';
 import { RefreshToken } from '../../domain/refresh-token.entity';
+import { RefreshTokenReuseError } from '../../domain/refresh-token-reuse.error';
 import type { RefreshTokenGateway } from '../../gateway/refresh-token.gateway';
 import type { UserGateway } from '../../gateway/user.gateway';
 import type { SessionServiceInterface } from '../../service/session.service';
@@ -13,6 +15,7 @@ const INVALID_REFRESH_TOKEN = 'Invalid refresh token';
 
 export class RefreshUseCase implements RefreshUseCaseInterface {
   constructor(
+    private readonly transactionManager: TransactionManager,
     private readonly refreshTokenGateway: Pick<
       RefreshTokenGateway,
       'findByTokenHash' | 'revoke' | 'revokeFamily'
@@ -32,13 +35,8 @@ export class RefreshUseCase implements RefreshUseCaseInterface {
     ) {
       throw new UnauthorizedError(INVALID_REFRESH_TOKEN);
     }
-
-    const rotated =
-      !current.isRevoked() &&
-      (await this.refreshTokenGateway.revoke(current.id));
-    if (!rotated) {
-      await this.refreshTokenGateway.revokeFamily(current.familyId);
-      throw new UnauthorizedError(INVALID_REFRESH_TOKEN);
+    if (current.isRevoked()) {
+      return this.rejectReuse(current);
     }
 
     const user = await this.userGateway.findById(current.userId);
@@ -46,6 +44,19 @@ export class RefreshUseCase implements RefreshUseCaseInterface {
       throw new UnauthorizedError(INVALID_REFRESH_TOKEN);
     }
 
-    return this.sessionService.renew(user.id, current.familyId);
+    const session = await this.transactionManager.execute(async (trx) =>
+      (await this.refreshTokenGateway.revoke(current.id, trx))
+        ? this.sessionService.renew(user.id, current.familyId, trx)
+        : undefined,
+    );
+    if (!session) {
+      return this.rejectReuse(current);
+    }
+    return session;
+  }
+
+  private async rejectReuse(token: RefreshToken): Promise<never> {
+    await this.refreshTokenGateway.revokeFamily(token.familyId);
+    throw new RefreshTokenReuseError(token.userId, token.familyId);
   }
 }

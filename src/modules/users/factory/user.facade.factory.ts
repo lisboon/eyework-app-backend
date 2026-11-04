@@ -36,6 +36,7 @@ export class UserFacadeFactory {
       new LoginUseCase(userRepository, authUserService, sessionService),
       new FindMeUseCase(userRepository),
       new RefreshUseCase(
+        transactionManager,
         refreshTokenRepository,
         userRepository,
         sessionService,

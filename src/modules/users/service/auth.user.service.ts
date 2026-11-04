@@ -1,10 +1,11 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import type {
   AccessTokenPayload,
   TokenServiceInterface,
 } from './token/token.service';
 
 const BCRYPT_COST = 10;
+const BCRYPT_MAX_BYTES = 72;
 const DUMMY_HASH =
   '$2b$10$Mhdxlp9/ly2Lkcc5OHyFzeV29ozWS8xC4/KNskf6ECWZF47ZOlID2';
 
@@ -19,8 +20,8 @@ export class AuthUserService implements AuthUserServiceInterface {
   constructor(private readonly tokenService: TokenServiceInterface) {}
 
   async hashPassword(password: string): Promise<string> {
-    if (bcrypt.truncates(password)) {
-      throw new Error('Password longer than 72 bytes');
+    if (exceedsBcryptLimit(password)) {
+      throw new Error(`Password longer than ${BCRYPT_MAX_BYTES} bytes`);
     }
     return bcrypt.hash(password, BCRYPT_COST);
   }
@@ -29,8 +30,12 @@ export class AuthUserService implements AuthUserServiceInterface {
     password: string,
     hash: string | undefined,
   ): Promise<boolean> {
-    const matches = await bcrypt.compare(password, hash ?? DUMMY_HASH);
-    return matches && hash !== undefined && !bcrypt.truncates(password);
+    const comparable = hash !== undefined && !exceedsBcryptLimit(password);
+    const matches = await bcrypt.compare(
+      password,
+      comparable ? hash : DUMMY_HASH,
+    );
+    return comparable && matches;
   }
 
   generateToken(payload: AccessTokenPayload): string {
@@ -40,4 +45,8 @@ export class AuthUserService implements AuthUserServiceInterface {
   verifyToken(token: string): AccessTokenPayload {
     return this.tokenService.verifyToken(token);
   }
+}
+
+function exceedsBcryptLimit(password: string): boolean {
+  return Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES;
 }
