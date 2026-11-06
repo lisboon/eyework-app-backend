@@ -33,5 +33,6 @@ import { UserService } from './user.service';
       inject: [PrismaService, TokenService, AUTH_CONFIG],
     },
   ],
+  exports: [UserFacade],
 })
 export class UserModule {}
