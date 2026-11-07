@@ -19,7 +19,7 @@ export async function translateUniqueViolation<T>(
   }
 }
 
-function isUniqueViolation(error: unknown, index: string): boolean {
+export function isUniqueViolation(error: unknown, index: string): boolean {
   if (
     !(error instanceof Prisma.PrismaClientKnownRequestError) ||
     error.code !== 'P2002'

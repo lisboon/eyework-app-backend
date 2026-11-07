@@ -9,6 +9,17 @@ datasource db {
   provider = "mysql"
 }
 
+enum WorkspaceType {
+  COMPANY
+  INDIVIDUAL
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  RECRUITER
+}
+
 model User {
   id                   String               @id @default(uuid(7))
   name                 String               @db.VarChar(120)
@@ -19,6 +30,8 @@ model User {
   updatedAt            DateTime             @updatedAt
   deletedAt            DateTime?
   refreshTokenFamilies RefreshTokenFamily[]
+  individualWorkspace  Workspace?
+  workspaceMemberships WorkspaceMember[]
 }
 
 model RefreshTokenFamily {
@@ -38,4 +51,29 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime           @default(now())
   family    RefreshTokenFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model Workspace {
+  id                String            @id @default(uuid(7))
+  type              WorkspaceType
+  name              String            @db.VarChar(120)
+  individualOwnerId String?           @unique
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+  individualOwner   User?             @relation(fields: [individualOwnerId], references: [id], onDelete: Cascade)
+  members           WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
 }
